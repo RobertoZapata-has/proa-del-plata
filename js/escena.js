@@ -323,7 +323,7 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     e.base = pos; e.rotY = rotY; e.desc = d;
     return e;
   }
-  function propios(obj) { obj.traverse(m => { if (m.isMesh) m.material = m.material.clone(); }); }
+  function propios(obj) { obj.traverse(m => { if (m.isMesh || m.isLine) m.material = m.material.clone(); }); }
   function quitarBarco(tab, clave) { const e = barcos[tab].get(clave); if (e && !e.animando) { escena.remove(e.obj); barcos[tab].delete(clave); } }
 
   // flota propia: lista de { rol, h, r, c, hundido }
@@ -744,7 +744,7 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     // barcos meciéndose
     for (const tab of ['mio', 'rival']) for (const e of barcos[tab].values()) {
       const o = e.obj, ud = o.userData;
-      if (ud.aparece !== undefined && ud.aparece < 1) { ud.aparece = Math.min(1, ud.aparece + dt * .8); o.traverse(m => { if (m.isMesh) { m.material.transparent = ud.aparece < 1; m.material.opacity = ud.aparece; } }); }
+      if (ud.aparece !== undefined && ud.aparece < 1) { ud.aparece = Math.min(1, ud.aparece + dt * .8); o.traverse(m => { if (m.isMesh) { m.material.transparent = ud.aparece < 1; m.material.opacity = ud.aparece; } else if (m.isLine) m.material.opacity = .75 * ud.aparece; }); }
       flamear(o, t);
       if (e.animando) continue;
       const b = e.base || o.position;

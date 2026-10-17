@@ -1,5 +1,5 @@
 // Proa del Plata · los vigías: viñetas de historieta que gritan, se burlan y lloran
-// Las caras van en vigias/<personaje>-<cara>.png (generadas con Gemini). Si falta alguna, se dibuja una de prueba.
+// Las caras van en vigias/<personaje>-<cara>.webp (dibujadas con Gemini). Si falta alguna, se dibuja una de prueba.
 
 export const PERSONAJES = {
   p: { id: 'chirola', nombre: 'Chirola' },
@@ -15,6 +15,7 @@ const FRASES = {
     hundido: ['¡Mi barquito! ¡Noooo!', '¡Glu, glu, glu…!', '¡Nos hundieron! ¡Avísenle a Brown!'],
     victoria: ['¡El río es nuestro!', '¡Viva la patria!', '¡Volvé a Montevideo nadando!'],
     trampa: ['¡Cayó en la mina! ¡Jajajá!', '¡Pisaste el palito, maturrango!'],
+    catalejo: ['A ver, a ver… ¡te tengo, maturrango!', 'Mirá vos lo que encontré…', 'Anoto todo, eh. No me olvido de nada.'],
   },
   bermudez: {
     burla: ['¡Ni cerca, chaval!', '¡Agua! ¿Apuntas con los ojos cerrados?', '¡Mi abuela tira mejor, y está en Cádiz!', '¡Le has dado a una sardina, enhorabuena!', '¿Eso era un cañonazo o un estornudo?', '¡Ja! ¡Vuelve a la escuela, insurgente!'],
@@ -24,6 +25,7 @@ const FRASES = {
     hundido: ['¡Mi pipa no, mi pipa no!', '¡Glu… glu… por el Rey!', '¡Me hundo! ¡Que alguien salve el ron!'],
     victoria: ['¡El Plata es del Rey!', '¡Volved a casa, insurgentes!', '¡Olé y olé!'],
     trampa: ['¡Ha caído en la mina! ¡Ja!', '¡Bum! ¡Mira por dónde navegas!'],
+    catalejo: ['Ajá… ya te veo, insurgente.', 'Nada se le escapa a este catalejo.', 'Apuntado queda, chaval.'],
   },
 };
 const ONO = {
@@ -34,6 +36,7 @@ const ONO = {
   hundido: ['¡HUNDIDO!'],
   victoria: ['¡VICTORIA!'],
   trampa: ['¡BUUUM!'],
+  catalejo: ['¡AJÁ!', '¡ZOOM!'],
 };
 const azar = a => a[Math.floor(Math.random() * a.length)];
 const ultima = {};
@@ -55,7 +58,7 @@ function caraPrueba(pid, cara) {
     hundido: '<path d="M70 94 q10 6 20 0 M110 94 q10 6 20 0" stroke="#111" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M76 100 q-4 20 2 40 M124 100 q4 20 -2 40" stroke="#4fb3f0" stroke-width="7" fill="none" stroke-linecap="round"/>',
     victoria: '<path d="M70 94 q10 -12 20 0 M110 94 q10 -12 20 0" stroke="#111" stroke-width="5" fill="none" stroke-linecap="round"/>',
     trampa: '<path d="M70 92 q10 -10 20 0 M110 92 q10 -10 20 0" stroke="#111" stroke-width="5" fill="none" stroke-linecap="round"/>',
-  }[cara];
+  }[cara] || '<path d="M70 92 q10 -10 20 0 M110 92 q10 -10 20 0" stroke="#111" stroke-width="5" fill="none" stroke-linecap="round"/>';
   const boca = {
     burla: '<path d="M78 124 q22 30 44 0 z" fill="#5a1010" stroke="#111" stroke-width="4"/><path d="M98 132 q4 14 12 2" fill="#e05a6a" stroke="#111" stroke-width="3"/>',
     festejo: '<path d="M76 122 q24 34 48 0 z" fill="#5a1010" stroke="#111" stroke-width="4"/>',
@@ -64,7 +67,7 @@ function caraPrueba(pid, cara) {
     hundido: '<path d="M80 140 q20 -18 40 0 z" fill="#5a1010" stroke="#111" stroke-width="4"/>',
     victoria: '<path d="M74 120 q26 38 52 0 z" fill="#5a1010" stroke="#111" stroke-width="4"/>',
     trampa: '<path d="M78 124 q22 30 44 0 z" fill="#5a1010" stroke="#111" stroke-width="4"/>',
-  }[cara];
+  }[cara] || '<path d="M80 130 q20 12 40 0" stroke="#111" stroke-width="5" fill="none"/>';
   const hollin = cara === 'averiado' ? '<circle cx="70" cy="118" r="10" fill="#222" opacity=".55"/><circle cx="132" cy="80" r="8" fill="#222" opacity=".5"/><circle cx="118" cy="126" r="6" fill="#222" opacity=".5"/>' : '';
   const sombrero = esCh
     ? '<ellipse cx="100" cy="56" rx="62" ry="12" fill="#d8b56a" stroke="#111" stroke-width="5"/><path d="M68 56 q4 -34 32 -34 q28 0 32 34 z" fill="#e2c27c" stroke="#111" stroke-width="5"/><path d="M70 50 h60" stroke="#2c6fa8" stroke-width="7"/>'
@@ -100,7 +103,7 @@ function imagen(pid, cara) {
   im.src = src;
   return null;
 }
-export function precargar() { for (const P of Object.values(PERSONAJES)) for (const c of ['burla', 'festejo', 'alarma', 'averiado', 'hundido', 'victoria', 'catalejo']) imagen(P.id, c); }
+export function precargar() { for (const P of Object.values(PERSONAJES)) for (const c of ['burla', 'festejo', 'alarma', 'averiado', 'hundido', 'victoria', 'catalejo', 'neutro']) imagen(P.id, c); }
 
 function cerrar() {
   if (!raiz || raiz.hidden) return;
@@ -112,7 +115,7 @@ function cerrar() {
 export function vineta(bando, cara, { lado = 'arriba', texto = null, ono = null, dur = 2300 } = {}) {
   const P = PERSONAJES[bando]; const el = asegurar();
   clearTimeout(timer); if (fin) { const f = fin; fin = null; f(); }
-  const caraImg = cara === 'trampa' ? 'festejo' : cara;
+  const caraImg = cara === 'trampa' ? 'burla' : cara;
   const src = imagen(P.id, caraImg);
   const dibujo = src ? `<img src="${src}" alt="">` : caraPrueba(P.id, cara);
   const t = texto || frase(P.id, cara), o = ono || azar(ONO[cara] || ['¡BRAAAM!']);
@@ -123,5 +126,10 @@ export function vineta(bando, cara, { lado = 'arriba', texto = null, ono = null,
   const on = el.querySelector('.ono'); on.textContent = o; on.dataset.t = o;
   el.hidden = false;
   return new Promise(res => { fin = res; timer = setTimeout(cerrar, dur); });
+}
+// retrato fijo para la portada (no espera a que cargue: el navegador lo muestra cuando llega)
+export function retrato(bando) {
+  const P = PERSONAJES[bando];
+  return `<figure class="retrato ${bando}"><img src="vigias/${P.id}-neutro.webp" alt="${P.nombre}" onerror="this.parentNode.remove()"><figcaption>${P.nombre}</figcaption></figure>`;
 }
 export const nombreVigia = bando => PERSONAJES[bando].nombre;

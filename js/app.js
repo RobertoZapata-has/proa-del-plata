@@ -4,7 +4,7 @@ import { elegirJugada, NIVELES } from './ia.js';
 import { crearEscena } from './escena.js';
 import { Sonido } from './sonido.js';
 import { crearRed, nuevaSala, extraLink } from './red.js';
-import { vineta, precargar } from './vigias.js';
+import { vineta, precargar, retrato } from './vigias.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -265,6 +265,7 @@ function pintarPortada() {
   h += `<div class="interruptor${A.noche ? ' on' : ''}" data-p="noche"><div class="t"><b>Combate nocturno</b><span>De noche no se ve nada: bengalas, memoria y maniobras</span></div><div class="llave"></div></div>
     <div class="pie"><button class="btn" data-p="reglas">Cómo se juega</button>${instalar ? `<button class="btn" data-p="instalar">Instalar</button>` : ''}<button class="btn" data-p="sonido">${A.sonido ? 'Sonido: sí' : 'Sonido: no'}</button></div>`;
   $('menuPortada').innerHTML = h;
+  $('duo').innerHTML = retrato('p') + '<span class="vs">VS</span>' + retrato('r');
 }
 $('menuPortada').addEventListener('click', e => {
   const b = e.target.closest('[data-p]'); if (!b) return;
@@ -651,10 +652,12 @@ async function animarEvento(ev, antes, est) {
     if (mio) aviso(ev.vistos.length ? `La bengala ilumina ${ev.vistos.length} parte${ev.vistos.length > 1 ? 's' : ''} de barco… ¡acordate!` : 'La bengala no muestra nada: agua vacía', 'oro', 4200);
     else aviso(`${NombreRival()} lanzó una bengala sobre tus aguas`, 'rojo', 3500);
     await esc.bengala(tab, ev.r, ev.c, mio ? ev.vistos : []);
+    if (mio && ev.vistos.length) await vineta(bandoDe(S.yo), 'catalejo', { lado: 'abajo', dur: 2000 });
   } else if (ev.k === 'sondeo') {
     if (S.vista !== tab) { S.vista = tab; await esc.mirar(tab, false, .9); }
     Sonido.sondeo();
     await esc.sondeo(tab, ev.r, ev.c, ev.h);
+    if (mio && ev.cuenta) vineta(bandoDe(S.yo), 'catalejo', { lado: 'abajo', dur: 2000 });
     const linea = ev.h ? `la fila ${fila(ev.r)}` : `la columna ${col(ev.c)}`;
     if (mio) aviso(`Sondaleza: ${ev.cuenta} parte${ev.cuenta === 1 ? '' : 's'} de barco sana${ev.cuenta === 1 ? '' : 's'} en ${linea}`, 'oro', 4500);
     else aviso(`${NombreRival()} sondeó ${linea} de tus aguas`, 'rojo', 3200);

@@ -140,6 +140,15 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
   text-shadow:0 2px 0 #3a2410,0 0 30px #000,0 6px 24px #000c;letter-spacing:1px}
 #portada .lema{font-style:italic;font-size:18px;color:#f6e7c6;text-shadow:0 2px 10px #000;margin-top:8px}
 #portada .orla{display:block;margin:10px auto 0;width:180px;height:14px;color:var(--oro);fill:none;stroke:currentColor}
+#portada .duo{display:flex;justify-content:center;align-items:center;gap:6px;margin-top:14px}
+#portada .duo .vs{font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:30px;color:#ffd23f;-webkit-text-stroke:2px #111;text-shadow:3px 3px 0 #111;transform:rotate(-8deg);z-index:1}
+.retrato{position:relative;margin:0;width:min(25vw,112px);aspect-ratio:1;border:3.5px solid #111;background:#fff;box-shadow:4px 4px 0 #111,-3px -2px 0 #1fa3d6,3px 2px 0 #e2336b;transform:rotate(-4deg);animation:retEntra .6s cubic-bezier(.2,1.5,.4,1) both}
+.retrato.r{transform:rotate(4deg) scaleX(-1);animation-delay:.15s}
+.retrato img{width:100%;height:100%;object-fit:cover;display:block}
+.retrato figcaption{position:absolute;left:-4px;bottom:-6px;background:#ffd23f;border:2.5px solid #111;font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:14px;letter-spacing:.05em;color:#111;padding:0 6px}
+.retrato.r figcaption{transform:scaleX(-1);left:auto;right:-4px}
+@keyframes retEntra{from{opacity:0;translate:0 30px}}
+@media (max-height:640px){#portada .duo{display:none}}
 #portada .menu{width:min(100%,400px);display:flex;flex-direction:column;gap:9px}
 #portada .btn{font-size:18px;min-height:54px}
 #portada .btn small{display:block;font-size:12.5px;font-style:italic;opacity:.8}
@@ -176,6 +185,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 #vineta .globo{position:relative;margin:14px 0 0 -6px;background:#fff;color:#111;border:3.5px solid #111;border-radius:22px 22px 22px 6px;padding:9px 13px;
   font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:clamp(17px,4.6vw,22px);letter-spacing:.03em;line-height:1.08;max-width:min(52vw,260px);
   box-shadow:4px 4px 0 #111;animation:vGlobo .45s .12s cubic-bezier(.2,1.6,.4,1) both;z-index:2}
+#vineta.abajo .nombre{left:auto;right:-4px}
 #vineta.abajo .globo{margin:14px -6px 0 0;border-radius:22px 22px 6px 22px}
 #vineta .ono{position:absolute;top:calc(min(40vw,190px) - 34px);left:min(30vw,150px);font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:clamp(40px,12vw,64px);line-height:1;color:#ffd23f;
   -webkit-text-stroke:3px #111;letter-spacing:.02em;transform:rotate(-8deg);animation:vOno .5s .18s cubic-bezier(.2,1.8,.4,1) both;z-index:3;white-space:nowrap;
@@ -259,6 +269,7 @@ body.pelicula #arriba,body.pelicula #abajo,body.pelicula #avisos{opacity:0;point
     <h1>Proa del Plata</h1>
     <svg class="orla"><use href="#i-orla"/></svg>
     <div class="lema">Batalla naval en el Río de la Plata · 1814</div>
+    <div class="duo" id="duo"></div>
   </div>
   <div class="menu" id="menuPortada"></div>
 </div>
