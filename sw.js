@@ -1,9 +1,9 @@
 // Proa del Plata · service worker
 // Cambiar VERSION cada vez que se publica, para que los celulares bajen lo nuevo.
-const VERSION = 'pdp-2026-10-17a';
+const VERSION = 'pdp-2026-10-17b';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
-  './js/app.js', './js/reglas.js', './js/ia.js', './js/escena.js', './js/barcos.js', './js/sonido.js', './js/red.js',
+  './js/app.js', './js/reglas.js', './js/ia.js', './js/escena.js', './js/barcos.js', './js/sonido.js', './js/red.js', './js/vigias.js', './texturas/agua-normales.jpg',
   './iconos/icon-192.png', './iconos/icon-512.png', './iconos/icon-maskable-512.png',
 ];
 const CDN = ['https://cdn.jsdelivr.net/', 'https://fonts.googleapis.com/', 'https://fonts.gstatic.com/'];

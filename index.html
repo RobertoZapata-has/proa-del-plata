@@ -9,10 +9,10 @@
 <link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="description" content="Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas, pintada al óleo. Online con un amigo o contra la compu.">
+<meta name="description" content="Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas. Online con un amigo o contra la compu.">
 <title>Proa del Plata</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Bangers&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script type="importmap">{"imports":{
   "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
@@ -161,6 +161,50 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
 .emojis button{font-size:20px;padding:4px 8px}
 .escribir{display:flex;gap:6px}
 .escribir input{flex:1;min-width:0;border:1px solid #a0855a;border-radius:8px;padding:10px;font-size:16px;font-family:var(--serif);background:#fff8e6;color:var(--tinta);user-select:text;-webkit-user-select:text}
+
+/* ---------- viñetas de los vigías (historieta) ---------- */
+#vineta{position:fixed;left:0;right:0;z-index:35;pointer-events:auto;display:flex;align-items:flex-start;gap:0;padding:0 12px;cursor:pointer}
+#vineta.arriba{top:calc(var(--st) + 104px);flex-direction:row}
+#vineta.abajo{bottom:calc(var(--sb) + 200px);flex-direction:row-reverse}
+#vineta .panel{position:relative;width:min(40vw,190px);aspect-ratio:1;flex:none;border:4px solid #111;background:#fff;
+  box-shadow:6px 6px 0 #111, -4px -3px 0 #1fa3d6, 9px 8px 0 #e2336b;transform:rotate(-3deg);animation:vEntra .38s cubic-bezier(.2,1.5,.4,1) both;overflow:hidden}
+#vineta.abajo .panel{transform:rotate(3deg)}
+#vineta .cara{position:absolute;inset:0}
+#vineta .cara img,#vineta .cara svg{width:100%;height:100%;object-fit:cover;display:block}
+#vineta .cara::after{content:"";position:absolute;inset:0;background:radial-gradient(rgba(0,0,0,.18) 1.2px,transparent 1.6px) 0 0/7px 7px;mix-blend-mode:multiply;pointer-events:none}
+#vineta .nombre{position:absolute;left:-4px;bottom:-4px;background:#ffd23f;border:3px solid #111;font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:17px;letter-spacing:.06em;color:#111;padding:1px 8px 0}
+#vineta .globo{position:relative;margin:14px 0 0 -6px;background:#fff;color:#111;border:3.5px solid #111;border-radius:22px 22px 22px 6px;padding:9px 13px;
+  font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:clamp(17px,4.6vw,22px);letter-spacing:.03em;line-height:1.08;max-width:min(52vw,260px);
+  box-shadow:4px 4px 0 #111;animation:vGlobo .45s .12s cubic-bezier(.2,1.6,.4,1) both;z-index:2}
+#vineta.abajo .globo{margin:14px -6px 0 0;border-radius:22px 22px 6px 22px}
+#vineta .ono{position:absolute;top:calc(min(40vw,190px) - 34px);left:min(30vw,150px);font-family:"Bangers",Impact,"Arial Black",sans-serif;font-size:clamp(40px,12vw,64px);line-height:1;color:#ffd23f;
+  -webkit-text-stroke:3px #111;letter-spacing:.02em;transform:rotate(-8deg);animation:vOno .5s .18s cubic-bezier(.2,1.8,.4,1) both;z-index:3;white-space:nowrap;
+  text-shadow:4px 4px 0 #111}
+#vineta .ono::before,#vineta .ono::after{content:attr(data-t);position:absolute;inset:0;-webkit-text-stroke:0;text-shadow:none;z-index:-1;mix-blend-mode:multiply;animation:vGlitch .5s .18s steps(2) 3}
+#vineta .ono::before{color:#1fa3d6;transform:translate(-4px,2px)}
+#vineta .ono::after{color:#e2336b;transform:translate(4px,-2px)}
+#vineta.abajo .ono{left:auto;right:min(30vw,150px);transform:rotate(7deg)}
+#vineta.p .ono{color:#bfe6ff}
+#vineta.sale{opacity:0;transform:translateY(-8px);transition:.25s}
+@keyframes vEntra{0%{transform:translateX(-120%) rotate(-14deg) skewX(10deg)}100%{transform:rotate(-3deg)}}
+#vineta.abajo .panel{animation-name:vEntraD}
+@keyframes vEntraD{0%{transform:translateX(120%) rotate(14deg) skewX(-10deg)}100%{transform:rotate(3deg)}}
+@keyframes vGlobo{0%{transform:scale(0)}100%{transform:scale(1)}}
+@keyframes vOno{0%{transform:scale(3) rotate(-20deg);opacity:0}100%{transform:scale(1) rotate(-8deg);opacity:1}}
+@keyframes vGlitch{0%{transform:translate(-9px,3px)}50%{transform:translate(8px,-4px)}100%{transform:translate(-4px,2px)}}
+
+/* ---------- modo película (hundimiento) ---------- */
+#cine{position:fixed;inset:0;z-index:33;pointer-events:none}
+#cine .barra{position:absolute;left:0;right:0;height:12vh;background:#000;transition:transform .7s cubic-bezier(.6,0,.3,1)}
+#cine .barra.s{top:0;transform:translateY(-100%)}
+#cine .barra.i{bottom:0;transform:translateY(100%)}
+#cine.on .barra{transform:none}
+#cine .gota{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.55),rgba(255,255,255,.08) 45%,rgba(180,210,230,.18) 70%,transparent 72%);
+  backdrop-filter:blur(3px) brightness(1.1);-webkit-backdrop-filter:blur(3px) brightness(1.1);animation:gota 3.2s ease-in forwards}
+@keyframes gota{0%{opacity:0;transform:scale(.4)}8%{opacity:1;transform:scale(1)}70%{opacity:.9}100%{opacity:0;transform:translateY(70px) scaleY(1.3)}}
+body.pelicula #arriba,body.pelicula #abajo,body.pelicula #avisos{opacity:0;pointer-events:none;transition:opacity .4s}
+#arriba,#abajo,#avisos{transition:opacity .4s}
+
 #cargando{position:fixed;inset:0;z-index:60;background:#1c1610;display:grid;place-items:center;font-style:italic;color:var(--gris);font-size:18px;transition:opacity .6s}
 </style>
 </head>
@@ -232,6 +276,7 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stro
   </div>
 </div>
 
+<div id="cine"><div class="barra s"></div><div class="barra i"></div></div>
 <div id="cargando">Preparando el río…</div>
 
 <script type="module" src="js/app.js"></script>

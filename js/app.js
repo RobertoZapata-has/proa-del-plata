@@ -4,6 +4,7 @@ import { elegirJugada, NIVELES } from './ia.js';
 import { crearEscena } from './escena.js';
 import { Sonido } from './sonido.js';
 import { crearRed, nuevaSala, extraLink } from './red.js';
+import { vineta, precargar } from './vigias.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -20,6 +21,7 @@ const fila = r => r + 1, col = c => R.LETRAS[c];
 
 // ---------- Ajustes ----------
 const A = Object.assign({ sonido: true, calidad: 'auto', noche: false, nivel: 'marinero' }, leer('pdp-ajustes', {}));
+if (!['auto', 'alta', 'media', 'baja'].includes(A.calidad)) A.calidad = 'auto';
 const guardarAjustes = () => escribir('pdp-ajustes', A);
 Sonido.activo = A.sonido;
 
@@ -328,8 +330,8 @@ function menu() {
   const q = A.calidad;
   modal(`<h2>Menú</h2>
     <div class="pila">
-      <div><b style="font-family:var(--sc);font-weight:400">Pintura al óleo</b> <span style="font-size:13px;font-style:italic;color:#6b5434">(si anda lento, bajala)</span>
-      <div class="opciones" style="margin-top:5px">${[['auto', 'Auto'], ['alta', 'Alta'], ['media', 'Media'], ['baja', 'Baja'], ['off', 'Sin filtro']].map(([k, n]) => `<button class="${q === k ? 'sel' : ''}" data-m="calidad" data-c="${k}">${n}</button>`).join('')}</div></div>
+      <div><b style="font-family:var(--sc);font-weight:400">Gráficos</b> <span style="font-size:13px;font-style:italic;color:#6b5434">(si anda lento, bajalos)</span>
+      <div class="opciones" style="margin-top:5px">${[['auto', 'Auto'], ['alta', 'Alta'], ['media', 'Media'], ['baja', 'Baja']].map(([k, n]) => `<button class="${q === k ? 'sel' : ''}" data-m="calidad" data-c="${k}">${n}</button>`).join('')}</div></div>
       ${S.modo === 'online' && S.yo === 'h' ? `<button class="btn azul" data-m="invitar">${icono('botella')} Volver a mandar el link</button>` : ''}
       <button class="btn" data-m="reglas">Cómo se juega</button>
       ${S.modo === 'cpu' && S.fase !== 'fin' ? `<button class="btn" data-m="abandonar">Abandonar esta partida</button>` : ''}
@@ -612,22 +614,37 @@ async function animarEvento(ev, antes, est) {
       else if (x.o === 'mina') Sonido.mina();
       else if (x.o !== 'nada') { Sonido.impacto(); golpes++; if (!mio && navigator.vibrate) try { navigator.vibrate(120); } catch (e) {} }
     });
-    // hundimientos
+    // los vigías reaccionan
+    const yoB = bandoDe(S.yo), elB = bandoDe(rival());
+    const imp = ev.res.filter(x => x.o === 'impacto' || x.o === 'hundido').length;
+    const ladoDe = b => (b === yoB ? 'abajo' : 'arriba');
+    if (!ev.hund.length) {
+      let quien, cara;
+      if (ev.mina) { quien = mio ? elB : yoB; cara = 'trampa'; }
+      else if (imp) { if (mio) { [quien, cara] = Math.random() < .5 ? [elB, Math.random() < .5 ? 'averiado' : 'alarma'] : [yoB, 'festejo']; } else { quien = yoB; cara = Math.random() < .5 ? 'averiado' : 'alarma'; } }
+      else { quien = mio ? elB : yoB; cara = 'burla'; }
+      if (cara === 'burla' || cara === 'trampa') Sonido.burla();
+      vineta(quien, cara, { lado: ladoDe(quien) });
+      await esperar(700);
+    }
+    // hundimientos: como en una película
     for (const h of ev.hund) {
-      Sonido.hundido();
-      if (mio) grito('¡Hundido!', nombreBarco(rival(), h.rol));
-      else grito('¡Nos hundieron!', nombreBarco(S.yo, h.rol), true);
-      await esc.hundir(tab, h, bandoDe(mio ? rival() : S.yo));
+      const bandoH = mio ? elB : yoB;
+      document.body.classList.add('pelicula'); $('cine').classList.add('on');
+      await esc.hundir(tab, h, bandoH, { cine: true, alGolpe: () => { Sonido.hundido(); gotas(); if (navigator.vibrate) try { navigator.vibrate(mio ? [60] : [120, 60, 220]); } catch (e) {} } });
+      $('cine').classList.remove('on'); document.body.classList.remove('pelicula');
+      vineta(bandoH, 'hundido', { lado: ladoDe(bandoH), ono: '¡HUNDIDO!', texto: null, dur: 2600 });
+      aviso(mio ? `Hundiste la ${nombreBarco(rival(), h.rol)}` : `Te hundieron la ${nombreBarco(S.yo, h.rol)}`, mio ? 'oro' : 'rojo', 3200);
+      await esperar(900);
     }
     if (ev.hund.length) await esc.volver(.8);
-    // avisos
-    const P = ev.p ? R.PODERES[ev.p].nombre + ': ' : '';
+    // avisos solo para los poderes
     if (ev.mina && mio) aviso('¡Mina! Perdés tu próximo turno', 'rojo', 3200);
-    if (!ev.hund.length) {
-      const imp = ev.res.filter(x => x.o === 'impacto').length;
-      if (mio) aviso(imp ? `${P}¡Impacto${imp > 1 ? `s (${imp})` : ''}!` : `${P}Agua…`, imp ? 'oro' : '');
-      else aviso(imp ? `${P}Te dieron en ${ev.res.filter(x => x.o === 'impacto').map(x => R.nombreCelda(x.r, x.c)).join(', ')}` : `${NombreRival()} ${ev.p ? 'usó ' + R.PODERES[ev.p].nombre.toLowerCase() + ': ' : 'tiró a ' + R.nombreCelda(ev.res[0].r, ev.res[0].c) + ': '}agua`, imp ? 'rojo' : '');
-    }
+    if (ev.p && !ev.hund.length) {
+      const P = R.PODERES[ev.p].nombre;
+      if (mio) aviso(imp ? `${P}: ${imp} impacto${imp > 1 ? 's' : ''}` : `${P}: todo agua`, imp ? 'oro' : '');
+      else aviso(`${NombreRival()} usó ${P.toLowerCase()}: ${imp ? imp + ' impacto' + (imp > 1 ? 's' : '') : 'agua'}`, imp ? 'rojo' : '');
+    } else if (!mio && !ev.hund.length) aviso(`${NombreRival()} tiró a ${ev.res.map(x => R.nombreCelda(x.r, x.c)).join(', ')}`, '', 2000);
   } else if (ev.k === 'bengala') {
     if (S.vista !== tab) { S.vista = tab; await esc.mirar(tab, false, .9); }
     Sonido.bengala();
@@ -655,12 +672,22 @@ async function animarEvento(ev, antes, est) {
   }
 }
 
+function gotas() {
+  const c = $('cine');
+  for (let i = 0; i < 11; i++) {
+    const g = document.createElement('div'); g.className = 'gota';
+    const t = 14 + Math.random() * 46; g.style.width = t + 'px'; g.style.height = t * (1 + Math.random() * .3) + 'px';
+    g.style.left = Math.random() * 92 + 'vw'; g.style.top = 12 + Math.random() * 70 + 'vh'; g.style.animationDelay = Math.random() * .3 + 's';
+    c.appendChild(g); setTimeout(() => g.remove(), 3700);
+  }
+}
+
 // ---------- fin ----------
 async function terminar() {
   S.fase = 'fin'; actualizarTodo();
   const gane = S.est.fin === S.yo;
   await esperar(500);
-  if (gane) { Sonido.victoria(); grito('¡Victoria!', 'El río es tuyo'); } else { Sonido.derrota(); grito('Derrota', `${NombreRival()} domina el Plata`, true); }
+  if (gane) { Sonido.victoria(); vineta(bandoDe(S.yo), 'victoria', { lado: 'abajo', dur: 3200 }); } else { Sonido.derrota(); vineta(bandoDe(rival()), 'victoria', { lado: 'arriba', dur: 3200 }); }
   if (S.modo === 'cpu') { S.rivalFlota = R.reconstruir(S.cfg, 'g', S.flotaCpu, S.log).mia.barcos; esc.revelar(S.rivalFlota, bandoDe(rival())); }
   else enviarRevela();
   guardar();
@@ -871,6 +898,7 @@ function arrancar() {
   else pintarPortada();
   setTimeout(() => { $('cargando').style.opacity = 0; setTimeout(() => $('cargando').remove(), 700); }, 300);
 }
+precargar();
 arrancar();
 window.__dbg = { encolar, R, estado };
 window.__listo = true;

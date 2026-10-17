@@ -1,6 +1,6 @@
 # Proa del Plata
 
-Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas, en 3D y pintada al óleo.
+Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas, en 3D, con los vigías Chirola y Bermúdez que comentan cada tiro.
 
 **Jugar:** https://robertozapata-has.github.io/proa-del-plata/
 
@@ -15,7 +15,8 @@ Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas, en 3D y 
 - `index.html`: pantalla y estilos.
 - `js/reglas.js`: reglas, mapas y flota. Todo el estado sale del registro de jugadas.
 - `js/ia.js`: la compu.
-- `js/escena.js`: el río en 3D, el filtro de óleo, las animaciones.
+- `js/escena.js`: el río en 3D (agua con reflejos y cielo real), las animaciones y el hundimiento de película.
+- `js/vigias.js`: las viñetas de historieta de los vigías. Las caras van en `vigias/`.
 - `js/barcos.js`: los barcos, hechos con código.
 - `js/sonido.js`: sonidos generados con código.
 - `js/red.js`: la conexión online por link.

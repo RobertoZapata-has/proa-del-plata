@@ -1,9 +1,7 @@
-// Proa del Plata · el río en 3D, pintado al óleo
+// Proa del Plata · el río en 3D
 import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Water } from 'three/addons/objects/Water.js';
+import { Sky } from 'three/addons/objects/Sky.js';
 import { crearBarco, flamear, crearSilueta, crearMina } from './barcos.js';
 import { N, rol, celdasDe, terreno, LETRAS } from './reglas.js';
 
@@ -27,75 +25,16 @@ const PALETAS = {
   dia: {
     hondo: 0x2c4442, medio: 0x5f7563, cielo: 0xe2c592, sol: 0xffe2a8, niebla: 0xcaa982,
     zenit: 0x34506e, horizonte: 0xf2b877, nubeOsc: 0x3c4150, nubeLuz: 0xffe0b0,
-    solDir: new THREE.Vector3(-.45, .2, -1).normalize(), luzSol: 0xffd9a0, intSol: 2.3, hemiA: 0xd9c7a8, hemiB: 0x3a3426, intHemi: 1.1,
-    tinta: 0xf6ead0, tintaOp: .55, costa: 0x3b3a2c,
+    solDir: new THREE.Vector3(-.42, .24, -1).normalize(), luzSol: 0xffe2b8, intSol: 2.6, hemiA: 0xcfd8e0, hemiB: 0x3a3426, intHemi: 1.25,
+    tinta: 0xf6ead0, tintaOp: .55, costa: 0x4a5048, agua: 0x22332c, niebla3: 0xaab6bf, exp: .5,
   },
   noche: {
     hondo: 0x0c1a2a, medio: 0x1e3652, cielo: 0x3a5272, sol: 0xc8daf0, niebla: 0x142236,
     zenit: 0x08101e, horizonte: 0x26395a, nubeOsc: 0x101a2c, nubeLuz: 0x4a6286,
     solDir: new THREE.Vector3(.35, .32, -1).normalize(), luzSol: 0xb4cbea, intSol: 1.4, hemiA: 0x6a84ac, hemiB: 0x141c2c, intHemi: 1.35,
-    tinta: 0xbdd0ea, tintaOp: .38, costa: 0x070b12,
+    tinta: 0xbdd0ea, tintaOp: .42, costa: 0x070b12, agua: 0x050d16, niebla3: 0x0b1422, exp: .95,
   },
 };
-
-const VERT_PLANO = `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`;
-
-function shaderKuwahara(R) {
-  return {
-    uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) } },
-    vertexShader: VERT_PLANO,
-    fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uRes; varying vec2 vUv;
-void main(){
-  vec2 px=1./uRes;
-  vec3 m0=vec3(0.),m1=vec3(0.),m2=vec3(0.),m3=vec3(0.),s0=vec3(0.),s1=vec3(0.),s2=vec3(0.),s3=vec3(0.);
-  for(int j=-${R};j<=${R};j++) for(int i=-${R};i<=${R};i++){
-    vec3 c=texture2D(tDiffuse, vUv+vec2(float(i),float(j))*px).rgb;
-    if(i<=0&&j<=0){m0+=c;s0+=c*c;}
-    if(i>=0&&j<=0){m1+=c;s1+=c*c;}
-    if(i<=0&&j>=0){m2+=c;s2+=c*c;}
-    if(i>=0&&j>=0){m3+=c;s3+=c*c;}
-  }
-  float n=float((${R}+1)*(${R}+1));
-  m0/=n;m1/=n;m2/=n;m3/=n;
-  float v0=dot(abs(s0/n-m0*m0),vec3(1.)), v1=dot(abs(s1/n-m1*m1),vec3(1.)), v2=dot(abs(s2/n-m2*m2),vec3(1.)), v3=dot(abs(s3/n-m3*m3),vec3(1.));
-  float w0=1./(1.+pow(900.*v0,2.)), w1=1./(1.+pow(900.*v1,2.)), w2=1./(1.+pow(900.*v2,2.)), w3=1./(1.+pow(900.*v3,2.));
-  gl_FragColor=vec4((m0*w0+m1*w1+m2*w2+m3*w3)/(w0+w1+w2+w3),1.);
-}` };
-}
-const SHADER_LIENZO = {
-  uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uLow: { value: new THREE.Vector2(1, 1) }, uNoche: { value: 0 }, uFlash: { value: 0 }, uT: { value: 0 } },
-  vertexShader: VERT_PLANO,
-  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uRes, uLow; uniform float uNoche, uFlash, uT; varying vec2 vUv;
-${GLSL_RUIDO}
-float lum(vec3 c){ return dot(c, vec3(.299,.587,.114)); }
-void main(){
-  vec2 uv=vUv;
-  float ang = .5 + (ruido(uv*vec2(2.,3.))-.5)*1.2;
-  vec2 dir = vec2(cos(ang), sin(ang));
-  vec2 p = uv*uRes/9.;
-  float along = dot(p,dir), across = dot(p, vec2(-dir.y,dir.x));
-  float trazo = ruido(vec2(along*.18, across*1.1))*.6 + ruido(p*.5)*.4;
-  vec3 col = texture2D(tDiffuse, uv + (trazo-.5)*2./uLow).rgb;
-  vec2 q=1./uLow;
-  float tl=lum(texture2D(tDiffuse,uv+vec2(-q.x,q.y)).rgb), t=lum(texture2D(tDiffuse,uv+vec2(0.,q.y)).rgb), tr=lum(texture2D(tDiffuse,uv+q).rgb);
-  float l=lum(texture2D(tDiffuse,uv-vec2(q.x,0.)).rgb), r=lum(texture2D(tDiffuse,uv+vec2(q.x,0.)).rgb);
-  float bl=lum(texture2D(tDiffuse,uv-q).rgb), b=lum(texture2D(tDiffuse,uv-vec2(0.,q.y)).rgb), br=lum(texture2D(tDiffuse,uv+vec2(q.x,-q.y)).rgb);
-  float gx=-tl-2.*l-bl+tr+2.*r+br, gy=-bl-2.*b-br+tl+2.*t+tr;
-  float borde = smoothstep(.12,.5,length(vec2(gx,gy)));
-  col *= 1. - borde*.28;
-  col *= 1. + (trazo-.5)*.09;
-  vec2 fc = gl_FragCoord.xy;
-  float trama = sin(fc.x*1.9)*sin(fc.y*1.9)*.5+.5;
-  float grano = hash(fc + floor(uT*0.))*.5 + ruido(fc*.08)*.5;
-  col *= .93 + .07*mix(trama, grano, .55);
-  col = mix(col, col*vec3(1.07,1.,.84), .55*(1.-uNoche));
-  col = mix(col, col*vec3(.9,1.,1.12), .4*uNoche);
-  col = (col-.5)*1.06+.5;
-  float v = smoothstep(1.25,.3,length((uv-.5)*vec2(1.05,1.25)));
-  col *= mix(.68,1.,v);
-  col += uFlash*vec3(1.,.82,.55);
-  gl_FragColor=vec4(clamp(col,0.,1.),1.);
-}` };
 
 // ---------- Partículas ----------
 class Particulas {
@@ -187,7 +126,7 @@ const ease = { io: t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2, ou
 export function crearEscena(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = .62;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(dpr);
   const escena = new THREE.Scene();
@@ -195,15 +134,18 @@ export function crearEscena(canvas) {
   const cam = new THREE.PerspectiveCamera(40, 1, .1, 700);
   cam.position.set(0, 14, SEP + 14);
 
-  let pal = PALETAS.dia, noche = false;
+  let pal = PALETAS.dia, noche = false, expBase = .62;
 
   // ---------- Cielo ----------
+  // de día: cielo físico (Sky) · de noche: cielo propio con luna y estrellas
+  const cieloDia = new Sky(); cieloDia.scale.setScalar(500); escena.add(cieloDia);
+  { const u = cieloDia.material.uniforms; u.turbidity.value = 4.5; u.rayleigh.value = 2.4; u.mieCoefficient.value = .004; u.mieDirectionalG.value = .82; }
   const uCielo = {
     uZenit: { value: new THREE.Color() }, uHorizonte: { value: new THREE.Color() }, uSol: { value: new THREE.Color() }, uSolDir: { value: new THREE.Vector3() },
     uNubeOsc: { value: new THREE.Color() }, uNubeLuz: { value: new THREE.Color() }, uNoche: { value: 0 }, uT: { value: 0 },
   };
   const cielo = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), new THREE.ShaderMaterial({
-    uniforms: uCielo, side: THREE.BackSide, depthWrite: false,
+    uniforms: uCielo, side: THREE.BackSide, depthWrite: false, fog: false,
     vertexShader: `varying vec3 vD; void main(){ vD=normalize(position); gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
     fragmentShader: `uniform vec3 uZenit,uHorizonte,uSol,uSolDir,uNubeOsc,uNubeLuz; uniform float uNoche,uT; varying vec3 vD;
 ${GLSL_RUIDO}
@@ -216,9 +158,8 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
   float lz=clamp(pow(s,3.)*1.4+(fbm(p*2.3+3.)-.5)*.9+.15,0.,1.);
   vec3 nube=mix(uNubeOsc,uNubeLuz,lz);
   col=mix(col,nube,c*smoothstep(-.02,.1,y)*.88);
-  col+=uSol*(pow(s,1400.)*3.+pow(s,40.)*.45+pow(s,6.)*.12*(1.-uNoche));
-  if(uNoche>.5){ vec2 q=floor(d.xz/(y+.35)*160.); float h=hash(q); col+=step(.9965,h)*smoothstep(.06,.35,y)*.9*(1.-c); }
-  col += (hash(gl_FragCoord.xy)-.5)*.035;
+  col+=uSol*(pow(s,2200.)*3.+pow(s,60.)*.35);
+  vec2 q=floor(d.xz/(y+.35)*200.); float h=hash(q); col+=step(.998,h)*smoothstep(.15,.45,y)*.5*(1.-c);
   gl_FragColor=vec4(col,1.);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -226,47 +167,21 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
   }));
   cielo.renderOrder = -10; escena.add(cielo);
 
-  // ---------- Agua ----------
-  const uAgua = {
-    uT: { value: 0 }, uHondo: { value: new THREE.Color() }, uMedio: { value: new THREE.Color() }, uCielo: { value: new THREE.Color() },
-    uSol: { value: new THREE.Color() }, uSolDir: { value: new THREE.Vector3() }, uNiebla: { value: new THREE.Color() },
-  };
-  const geoAgua = new THREE.PlaneGeometry(260, 260, 200, 200); geoAgua.rotateX(-Math.PI / 2);
-  const agua = new THREE.Mesh(geoAgua, new THREE.ShaderMaterial({
-    uniforms: uAgua,
-    vertexShader: `uniform float uT; varying vec3 vW; varying vec3 vN;
-${GLSL_OLA}
-void main(){ vec4 w=modelMatrix*vec4(position,1.); float h=ola(w.xz,uT); float e=.15;
-  float hx=ola(w.xz+vec2(e,0.),uT), hz=ola(w.xz+vec2(0.,e),uT);
-  vN=normalize(vec3(-(hx-h)/e,1.,-(hz-h)/e)); w.y+=h; vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,
-    fragmentShader: `uniform float uT; uniform vec3 uHondo,uMedio,uCielo,uSol,uSolDir,uNiebla; varying vec3 vW; varying vec3 vN;
-${GLSL_RUIDO}
-void main(){ vec3 V=normalize(cameraPosition-vW);
-  vec3 Nn=normalize(vN+vec3(fbm(vW.xz*1.1+uT*.12)-.5,0.,fbm(vW.zx*.9-uT*.1)-.5)*.42);
-  float fr=pow(1.-max(dot(Nn,V),0.),3.);
-  float n=fbm(vW.xz*.16+vec2(uT*.015,0.));
-  vec3 col=mix(uHondo,uMedio,smoothstep(.28,.78,n));
-  col=mix(col,uCielo,clamp(fr*.6,0.,.7));
-  vec3 R=reflect(-uSolDir,Nn); float rv=max(dot(R,V),0.);
-  col+=uSol*pow(rv,120.)*1.1;
-  float g=smoothstep(.7,.9,fbm(vW.xz*2.2+vec2(uT*.25,-uT*.1)));
-  float dd=length(vW-cameraPosition);
-  col+=uSol*g*pow(rv,6.)*.55*smoothstep(60.,20.,dd);
-  col *= .95 + .1*ruido(vW.xz*2.1 + fbm(vW.xz*.8)*2.);
-  float d=length(vW-cameraPosition);
-  col=mix(col,uNiebla,smoothstep(28.,150.,d));
-  col += (hash(gl_FragCoord.xy*1.3)-.5)*.03;
-  gl_FragColor=vec4(col,1.);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`,
-  }));
+  // ---------- Agua (reflejos reales del cielo y los barcos) ----------
+  const normales = new THREE.TextureLoader().load('texturas/agua-normales.jpg', t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; });
+  normales.wrapS = normales.wrapT = THREE.RepeatWrapping;
+  const agua = new Water(new THREE.PlaneGeometry(900, 900), {
+    textureWidth: 512, textureHeight: 512, waterNormals: normales,
+    sunDirection: new THREE.Vector3(0, 1, 0), sunColor: 0xffffff, waterColor: 0x22332c, distortionScale: 2.6, fog: true,
+  });
+  agua.rotation.x = -Math.PI / 2; agua.material.uniforms.size.value = 2.2;
   escena.add(agua);
+  escena.fog = new THREE.Fog(0xb7bcb6, 70, 330);
 
   // costa lejana
-  const costaGeo = new THREE.CylinderGeometry(190, 190, 1, 160, 1, true);
-  { const p = costaGeo.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i), x = p.getX(i), z = p.getZ(i); if (y > 0) { const a = Math.atan2(z, x); p.setY(i, 1.5 + 5 * Math.pow(Math.abs(Math.sin(a * 3.1) * Math.sin(a * 7.3 + 1)), 1.5) + 2 * Math.sin(a * 23)); } else p.setY(i, -1); } costaGeo.computeVertexNormals(); }
-  const costa = new THREE.Mesh(costaGeo, new THREE.MeshBasicMaterial({ color: pal.costa, side: THREE.BackSide, fog: false }));
+  const costaGeo = new THREE.CylinderGeometry(240, 240, 1, 200, 1, true);
+  { const p = costaGeo.attributes.position; for (let i = 0; i < p.count; i++) { const y = p.getY(i), x = p.getX(i), z = p.getZ(i); if (y > 0) { const a = Math.atan2(z, x); p.setY(i, 2 + 7 * Math.pow(Math.abs(Math.sin(a * 3.1) * Math.sin(a * 7.3 + 1)), 1.5) + 1.5 * Math.sin(a * 23) + 1.2 * Math.sin(a * 61)); } else p.setY(i, -1); } costaGeo.computeVertexNormals(); }
+  const costa = new THREE.Mesh(costaGeo, new THREE.MeshLambertMaterial({ color: pal.costa, side: THREE.BackSide }));
   escena.add(costa);
 
   // luces
@@ -289,12 +204,17 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
     pal = noche ? PALETAS.noche : PALETAS.dia;
     uCielo.uZenit.value.set(pal.zenit); uCielo.uHorizonte.value.set(pal.horizonte); uCielo.uSol.value.set(pal.sol); uCielo.uSolDir.value.copy(pal.solDir);
     uCielo.uNubeOsc.value.set(pal.nubeOsc); uCielo.uNubeLuz.value.set(pal.nubeLuz); uCielo.uNoche.value = noche ? 1 : 0;
-    uAgua.uHondo.value.set(pal.hondo); uAgua.uMedio.value.set(pal.medio); uAgua.uCielo.value.set(pal.cielo); uAgua.uSol.value.set(pal.sol); uAgua.uSolDir.value.copy(pal.solDir); uAgua.uNiebla.value.set(pal.niebla);
+    cieloDia.visible = !noche; cielo.visible = noche;
+    cieloDia.material.uniforms.sunPosition.value.copy(pal.solDir);
+    agua.material.uniforms.sunDirection.value.copy(pal.solDir);
+    agua.material.uniforms.sunColor.value.set(noche ? 0x9fb4d0 : 0xfff1d8);
+    agua.material.uniforms.waterColor.value.set(pal.agua);
+    escena.fog.color.set(pal.niebla3); escena.fog.near = noche ? 40 : 70; escena.fog.far = noche ? 220 : 330;
+    expBase = pal.exp;
     hemi.color.set(pal.hemiA); hemi.groundColor.set(pal.hemiB); hemi.intensity = pal.intHemi;
     sol.color.set(pal.luzSol); sol.intensity = pal.intSol; sol.position.copy(pal.solDir).multiplyScalar(50); sol.target.position.set(0, 0, 0);
     costa.material.color.set(pal.costa);
     for (const t of Object.values(tableros)) { t.grilla.material.color.set(pal.tinta); t.grilla.material.opacity = pal.tintaOp; }
-    if (lienzo) lienzo.uniforms.uNoche.value = noche ? 1 : 0;
   }
 
   // ---------- Tableros: grilla, rótulos, islas, bancos ----------
@@ -560,10 +480,10 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
     const d = encuadre(mirando); const p0 = camObj.pos.clone(), m0 = camObj.mira.clone();
     return tweenCam(dur, k => { camObj.pos.lerpVectors(p0, d.pos, k); camObj.mira.lerpVectors(m0, d.mira, k); }, ease.io);
   }
-  let cine = false, camFija = null;
+  let cine = false, camFija = null, fijo = false, velocidad = 1;
   function grilla(v) { for (const t of Object.values(tableros)) { t.grilla.visible = v; t.marco.visible = v; t.rot.visible = v; t.marcas.visible = v; t.sondeos.visible = v; t.resalte.visible = v; } }
   function cinematica(v) { cine = v; }
-  function margenes(sup, inf) { margenSup = sup; margenInf = inf; const d = encuadre(mirando); camObj.pos.copy(d.pos); camObj.mira.copy(d.mira); }
+  function margenes(sup, inf) { margenSup = sup; margenInf = inf; if (fijo) return; const d = encuadre(mirando); camObj.pos.copy(d.pos); camObj.mira.copy(d.mira); }
 
   // ---------- Tiempo y animaciones ----------
   const tweens = [];
@@ -674,40 +594,60 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
     }
     return null;
   }
-  async function hundir(tab, h, bando) {
+  // opts.cine: la cámara baja al ras del agua, como en una película · opts.alGolpe: aviso del momento del estallido
+  async function hundir(tab, h, bando, opts = {}) {
     let clave = null, e = null;
     for (const [k, x] of barcos[tab]) { const d = x.desc; if (d.rol === h.rol && d.r === h.r && d.c === h.c && d.h === h.h) { clave = k; e = x; } }
-    if (!e) { clave = 'hundiendo-' + h.rol; e = ponerBarco(tab, clave, h, bando); propios(e.obj); e.obj.userData.aparece = .2; }
+    if (!e) { clave = 'hundiendo-' + h.rol; e = ponerBarco(tab, clave, h, bando); propios(e.obj); e.obj.userData.aparece = opts.cine ? 1 : .2; }
     e.animando = true;
     const o = e.obj, ud = o.userData;
     const { pos, rotY } = posBarco(tab, h);
-    o.position.copy(pos); o.rotation.set(0, rotY, 0);
+    o.position.copy(pos).setY(.04); o.rotation.set(0, rotY, 0);
     const L = ud.L;
     const centro = pos.clone().setY(.3);
-    explosion(centro, 1.3); astillar(centro, 60, 1.3); flash = .35;
+    const eje = h.h ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
+    const lado = h.h ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+    if (opts.cine) {
+      fijo = true; grilla(false);
+      const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
+      const dist = THREE.MathUtils.clamp((L * .62 + .9) / Math.tan(hfov / 2), 5, 17);
+      const camPos = pos.clone().addScaledVector(lado, dist * .93).addScaledVector(eje, dist * .36).setY(.55 + dist * .02);
+      const mira = pos.clone().setY(.95);
+      const p0 = camObj.pos.clone(), m0 = camObj.mira.clone();
+      await tweenCam(1.1, k => { camObj.pos.lerpVectors(p0, camPos, k); camObj.mira.lerpVectors(m0, mira, k); camObj.pos.y += Math.sin(k * Math.PI) * 2.5; }, ease.io);
+      await espera(.35);
+    }
+    // ¡estalla!
+    velocidad = opts.cine ? .4 : 1;
+    explosion(centro, opts.cine ? 1 : 1.4); astillar(centro, 70, 1.4); flash = opts.cine ? .25 : .4; chorro(centro, .8);
+    if (opts.alGolpe) opts.alGolpe();
+    const y0 = camObj.pos.y; const desliz = opts.cine ? tweenCam(5.5, k => { camObj.pos.addScaledVector(lado, -.006); camObj.pos.y = y0 - k * .25; camObj.mira.y = .95 - k * .7; }, ease.lin) : null;
     await espera(.15);
-    const mast0 = ud.mastiles.map(m => m.rotation.z), lado = ud.mastiles.map(() => Math.random() < .5 ? 1 : -1);
-    const ang = .5 + Math.random() * .3;
-    let terminado = false;
-    // humo y burbujas mientras se hunde
-    const burb = setIntervalo(.05, () => {
+    const caida = ud.mastiles.map(() => Math.random() < .5 ? 1 : -1);
+    const ang = .45 + Math.random() * .25;
+    const burb = setIntervalo(.04, () => {
       const p = o.localToWorld(new THREE.Vector3((Math.random() - .5) * L, 0, (Math.random() - .5) * .4)); p.y = .05;
-      humo.emitir({ x: p.x, y: p.y, z: p.z, vy: .5 + Math.random() * .5, vida: .6, t0: .1, t1: .25, c: [.95, .97, 1], a0: .8 });
-      humo.emitir({ x: p.x, y: .3, z: p.z, vx: .2, vy: .8, vida: 3, t0: .5, t1: 1.8, c: [.2, .17, .15], c1: [.45, .43, .4], a0: .55, a1: 0, roce: .8, entra: .2 });
+      humo.emitir({ x: p.x, y: p.y, z: p.z, vy: .5 + Math.random() * .6, vida: .6, t0: .08, t1: .22, c: [.95, .97, 1], a0: .8 });
+      if (Math.random() < .5) humo.emitir({ x: p.x, y: .3, z: p.z, vx: .2, vy: .8, vida: 3, t0: .5, t1: 1.8, c: [.2, .17, .15], c1: [.45, .43, .4], a0: .55, a1: 0, roce: .8, entra: .2 });
     });
-    await tween(1.4, k => {
-      ud.popa.rotation.z = -ang * .55 * ease.out(k); ud.popa.position.x = -k * .12;
-      ud.proa.rotation.z = ang * .7 * ease.out(k); ud.proa.position.x = k * .12;
-      ud.mastiles.forEach((m, i) => { m.rotation.x = lado[i] * 1.35 * ease.in(Math.min(1, k * 1.2)); });
+    // se parte: la popa se va para atrás, la proa se levanta, caen los mástiles
+    await tween(1.6, k => {
+      ud.popa.rotation.z = -ang * .5 * ease.out(k); ud.popa.position.x = -k * .14;
+      ud.proa.rotation.z = ang * .8 * ease.out(k); ud.proa.position.x = k * .14;
+      ud.mastiles.forEach((m, i) => { m.rotation.x = caida[i] * 1.35 * ease.in(Math.min(1, k * 1.2)); });
+      o.rotation.x = Math.sin(k * 3) * .05;
     });
-    onda(pos, 2.2);
-    await tween(2.6, k => {
-      o.position.y = -k * k * 2.8;
-      ud.popa.rotation.z = -ang * .55 - k * .5; ud.proa.rotation.z = ang * .7 + k * .6;
+    velocidad = opts.cine ? .75 : 1;
+    onda(pos, 2.4);
+    await tween(opts.cine ? 3.4 : 2.6, k => {
+      o.position.y = .04 - k * k * 3;
+      ud.popa.rotation.z = -ang * .5 - k * .55; ud.proa.rotation.z = ang * .8 + k * .65;
+      o.rotation.x = k * .25;
     }, ease.lin);
-    terminado = true; burb();
+    burb(); velocidad = 1;
     escena.remove(o); barcos[tab].delete(clave);
     ponerRestos(tab + ':' + h.rol, pos, rol(h.rol).largo, h.h, Math.random, true);
+    if (opts.cine) { await espera(.7); fijo = false; await volver(1.4); grilla(true); }
   }
   function setIntervalo(cada, fn) { const it = { cada, fn, acc: 0 }; intervalos.add(it); return () => intervalos.delete(it); }
   const intervalos = new Set();
@@ -770,47 +710,22 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
   }
   function limpiarRival() { for (const k of [...barcos.rival.keys()]) { const e = barcos.rival.get(k); escena.remove(e.obj); barcos.rival.delete(k); } }
 
-  // ---------- Filtro de óleo ----------
-  let composer = null, kuwa = null, lienzo = null, calidad = 'auto', nivelCal = 1;
-  const CALIDADES = [
-    { nombre: 'alta', escala: .85, radio: 5, trazo: 2.6 },
-    { nombre: 'media', escala: .65, radio: 4, trazo: 2.6 },
-    { nombre: 'baja', escala: .5, radio: 3, trazo: 2.4 },
-    { nombre: 'minima', escala: .38, radio: 2, trazo: 2.2 },
-  ];
-  function armarFiltro() {
-    if (composer) { composer.dispose?.(); composer = null; }
-    if (calidad === 'off') return;
-    const q = CALIDADES[nivelCal];
-    composer = new EffectComposer(renderer);
-    composer.setPixelRatio(Math.min(dpr, 2) * q.escala);
-    composer.addPass(new RenderPass(escena, cam));
-    composer.addPass(new OutputPass());
-    kuwa = new ShaderPass(shaderKuwahara(Math.max(1, Math.min(q.radio, Math.round(q.trazo * Math.min(dpr, 2) * q.escala))))); composer.addPass(kuwa);
-    lienzo = new ShaderPass(SHADER_LIENZO); lienzo.uniforms.uNoche.value = noche ? 1 : 0; composer.addPass(lienzo);
-    redimensionar();
-  }
+  // ---------- Calidad (resolución) ----------
+  const CALIDADES = [{ nombre: 'alta', pr: 2 }, { nombre: 'media', pr: 1.4 }, { nombre: 'baja', pr: 1 }];
+  let calidad = 'auto', nivelCal = 0;
   function setCalidad(c) {
-    calidad = c;
-    nivelCal = c === 'auto' ? (matchMedia('(pointer:coarse)').matches ? 1 : 0) : Math.max(0, CALIDADES.findIndex(x => x.nombre === c));
-    armarFiltro();
+    calidad = ['auto', 'alta', 'media', 'baja'].includes(c) ? c : 'auto';
+    nivelCal = calidad === 'auto' ? 0 : CALIDADES.findIndex(x => x.nombre === calidad);
+    aplicarCalidad();
   }
-
+  function aplicarCalidad() { renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, CALIDADES[nivelCal].pr)); redimensionar(); }
   function redimensionar() {
     const W = canvas.clientWidth || innerWidth, H = canvas.clientHeight || innerHeight;
     renderer.setSize(W, H, false);
     cam.aspect = W / H; cam.updateProjectionMatrix();
-    const pr = composer ? Math.min(dpr, 2) * CALIDADES[nivelCal].escala : dpr;
-    const esc = (H * pr / 2) / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+    const esc = (H * renderer.getPixelRatio() / 2) / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
     humo.uScale.value = esc; fuego.uScale.value = esc;
-    if (composer) {
-      const q = CALIDADES[nivelCal];
-      composer.setSize(W, H);
-      const lw = Math.round(W * Math.min(dpr, 2) * q.escala), lh = Math.round(H * Math.min(dpr, 2) * q.escala);
-      kuwa.uniforms.uRes.value.set(lw, lh);
-      lienzo.uniforms.uLow.value.set(lw, lh); lienzo.uniforms.uRes.value.set(W * dpr, H * dpr);
-    }
-    const d = encuadre(mirando); camObj.pos.copy(d.pos); camObj.mira.copy(d.mira);
+    const d = encuadre(mirando); if (!fijo) { camObj.pos.copy(d.pos); camObj.mira.copy(d.mira); }
   }
   window.addEventListener('resize', () => setTimeout(redimensionar, 60));
 
@@ -822,8 +737,8 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
   function cuadro() {
     if (pausa) return;
     if (!unSolo) requestAnimationFrame(cuadro);
-    const dt = Math.min(reloj3.getDelta(), .05), t = reloj3.elapsedTime; reloj = t;
-    uAgua.uT.value = t; uCielo.uT.value = t;
+    const dt = Math.min(reloj3.getDelta(), .05) * velocidad, t = reloj3.elapsedTime; reloj = t;
+    uCielo.uT.value = t;
     for (let i = tweens.length - 1; i >= 0; i--) { const w = tweens[i]; w.t += dt; const k = Math.min(1, w.t / w.dur); w.fn(w.e(k)); if (k >= 1) { tweens.splice(i, 1); w.res(); } }
     for (const it of intervalos) { it.acc += dt; while (it.acc >= it.cada) { it.acc -= it.cada; it.fn(); } }
     // barcos meciéndose
@@ -901,14 +816,15 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
     if (onCuadro) onCuadro(dt, t);
     // dibujar
     const t0 = performance.now();
-    if (composer) { lienzo.uniforms.uFlash.value = flash; lienzo.uniforms.uT.value = t; renderer.autoClear = true; composer.render(dt); }
-    else { renderer.autoClear = true; renderer.render(escena, cam); }
+    agua.material.uniforms.time.value = t * .45;
+    renderer.toneMappingExposure = expBase * (1 + flash * 1.6);
+    renderer.autoClear = true; renderer.render(escena, cam);
     renderer.autoClear = false; renderer.clearDepth(); renderer.render(capa, cam);
     // calidad automática
     tiempos.push(dt); acumRev += dt;
     if (calidad === 'auto' && acumRev > 2.5 && tiempos.length > 30) {
       const prom = tiempos.reduce((a, b) => a + b, 0) / tiempos.length;
-      if (prom > .036 && nivelCal < CALIDADES.length - 1) { nivelCal++; armarFiltro(); }
+      if (prom > .036 && nivelCal < CALIDADES.length - 1) { nivelCal++; aplicarCalidad(); }
       tiempos = []; acumRev = 0;
     }
   }
@@ -932,7 +848,7 @@ void main(){ vec3 V=normalize(cameraPosition-vW);
 
   return {
     setNoche(v) { noche = !!v; setPaleta(); },
-    setCalidad, calidadActual: () => calidad === 'off' ? 'off' : CALIDADES[nivelCal].nombre,
+    setCalidad, calidadActual: () => CALIDADES[nivelCal].nombre,
     ponerMapa, margenes, mirar, mirando: () => mirando, enfocar, volver, grilla, cinematica,
     flota, ponerFuegos, ponerRestos: (clave, tab, d) => { const { pos } = posBarco(tab, d); ponerRestos(clave, pos, rol(d.rol).largo, d.h, semilla(clave)); },
     quitarRestos, marcas, limpiarMarcas, insignias, resaltar, ponerMina, limpiarRival,

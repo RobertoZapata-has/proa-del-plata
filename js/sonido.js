@@ -93,6 +93,15 @@ export const Sonido = {
   tic() { if (!activo || !ac()) return; const t = ctx.currentTime; const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.value = 520; o.type = 'triangle'; env(g, t, .002, .08, .05); o.connect(g); g.connect(master); o.start(t); o.stop(t + .08); },
   maniobra() { if (!activo || !ac()) return; const t = ctx.currentTime; quejido(t, 1.4, .25); chapoteo(t + .3, .4); },
   botella() { if (!activo || !ac()) return; const t = ctx.currentTime; gota(t, .25); gota(t + .12, .2); campana(t + .2, 1568, .05, .6); },
+  burla() { // la risa del hornero: chillidos rápidos que bajan
+    if (!activo || !ac()) return; const t0 = ctx.currentTime;
+    for (let i = 0; i < 11; i++) {
+      const t = t0 + i * (.085 - i * .002), f = 2300 - i * 70;
+      const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle';
+      o.frequency.setValueAtTime(f * 1.15, t); o.frequency.exponentialRampToValueAtTime(f * .78, t + .06);
+      env(g, t, .004, .11, .06); o.connect(g); g.connect(master); o.start(t); o.stop(t + .09);
+    }
+  },
   victoria() {
     if (!activo || !ac()) return; const t = ctx.currentTime;
     [523, 659, 784, 1046, 784, 1046].forEach((f, i) => { const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'triangle'; o.frequency.value = f; env(g, t + i * .18, .01, .18, i === 5 ? 1.4 : .3); o.connect(g); g.connect(master); o.start(t + i * .18); o.stop(t + i * .18 + 1.6); });

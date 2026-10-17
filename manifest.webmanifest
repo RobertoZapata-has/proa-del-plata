@@ -1,7 +1,7 @@
 {
   "name": "Proa del Plata",
   "short_name": "Proa del Plata",
-  "description": "Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas, pintada al óleo. Online con un amigo o contra la compu.",
+  "description": "Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas. Online con un amigo o contra la compu.",
   "lang": "es-AR",
   "start_url": "./",
   "scope": "./",
