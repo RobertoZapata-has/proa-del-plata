@@ -1,0 +1,17 @@
+{
+  "name": "Proa del Plata",
+  "short_name": "Proa del Plata",
+  "description": "Batalla naval en el Río de la Plata, 1814. Patriotas contra realistas, pintada al óleo. Online con un amigo o contra la compu.",
+  "lang": "es-AR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1c1610",
+  "theme_color": "#1c1610",
+  "icons": [
+    { "src": "iconos/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "iconos/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "iconos/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
