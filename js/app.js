@@ -5,7 +5,7 @@ import { crearEscena } from './escena.js';
 import { cargarModelos } from './barcos.js';
 import { Sonido } from './sonido.js';
 import { crearRed, nuevaSala, extraLink } from './red.js';
-import { vineta, precargar, retrato } from './vigias.js';
+import { vineta, precargar, PERSONAJES } from './vigias.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -82,8 +82,9 @@ function pintarFlotas() {
   $('flotaYo').className = 'flota ' + yoB; $('flotaEl').className = 'flota ' + elB;
   $('flotaYoN').textContent = yoB === 'p' ? 'Patriotas' : 'Realistas';
   $('flotaElN').textContent = S.modo === 'cpu' ? 'Romarate' : (elB === 'p' ? 'Patriotas' : 'Realistas');
-  const pip = (rolId, hundida) => `<span class="nave${hundida ? ' hundida' : ''}" title="${rolId}">${'<i></i>'.repeat(R.rol(rolId).largo)}</span>`;
-  const mios = R.ROLES.map(Ro => { const b = est && est.mia.barcos.find(x => x.rol === Ro.id); return pip(Ro.id, b && b.hundido); }).join('');
+  // cada barco con sus casillas: amarillas las tocadas (solo las mías se saben), tachado si está hundido
+  const pip = (rolId, hundida, danio) => `<span class="nave${hundida ? ' hundida' : ''}" title="${rolId}">${Array.from({ length: R.rol(rolId).largo }, (_, k) => `<i${danio && danio[k] && !hundida ? ' class="t"' : ''}></i>`).join('')}</span>`;
+  const mios = R.ROLES.map(Ro => { const b = est && est.mia.barcos.find(x => x.rol === Ro.id); return pip(Ro.id, b && b.hundido, b && b.danio); }).join('');
   const hund = new Set(est ? est.hundidosRival.map(h => h.rol) : []);
   const suyos = R.ROLES.map(Ro => pip(Ro.id, hund.has(Ro.id))).join('');
   $('flotaYo').querySelector('.pips').innerHTML = mios;
@@ -93,7 +94,7 @@ function pintarFlotas() {
 // =====================================================================
 //  ABAJO (tabla de acciones)
 // =====================================================================
-const OLA_SVG = `<svg class="ola-anim" viewBox="0 0 34 20"><path d="M1 12c4-6 8-6 12 0s8 6 12 0 6-4 8-2" fill="none" stroke="#2f5d8a" stroke-width="2"><animate attributeName="d" dur="1.6s" repeatCount="indefinite" values="M1 12c4-6 8-6 12 0s8 6 12 0 6-4 8-2;M1 10c4 6 8 6 12 0s8-6 12 0 6 4 8 2;M1 12c4-6 8-6 12 0s8 6 12 0 6-4 8-2"/></path></svg>`;
+const OLA_SVG = `<svg class="ola-anim" viewBox="0 0 34 20"><path d="M1 12c4-6 8-6 12 0s8 6 12 0 6-4 8-2" fill="none" stroke="#7fd6ff" stroke-width="2.4"><animate attributeName="d" dur="1.6s" repeatCount="indefinite" values="M1 12c4-6 8-6 12 0s8 6 12 0 6-4 8-2;M1 10c4 6 8 6 12 0s8-6 12 0 6 4 8 2;M1 12c4-6 8-6 12 0s8 6 12 0 6-4 8-2"/></path></svg>`;
 
 function pintarTabla() {
   const t = $('tabla'); let h = '';
@@ -104,7 +105,7 @@ function pintarTabla() {
     const v = R.validarFlota(R.mapaPorId(S.cfg.mapa), S.flota);
     h = `<h3>Acomodá tu escuadra <small>${bandoDe(S.yo) === 'p' ? 'Patriotas · Brown' : 'Realistas · Romarate'}</small></h3>
     <div id="msjAbajo">${v.ok ? 'Tocá un barco y arrastralo. Tocalo de nuevo para girarlo.' : `<b>${v.motivo}.</b>`}</div>
-    <div class="fichas">${S.flota.map((b, i) => `<button class="ficha${S.sel === i ? ' sel' : ''}${v.malos.has(i) ? ' mal' : ''}" data-act="elegir" data-i="${i}">
+    <div class="fichas">${S.flota.map((b, i) => `<button class="ficha barco${S.sel === i ? ' sel' : ''}${v.malos.has(i) ? ' mal' : ''}" data-act="elegir" data-i="${i}">
       <div class="n">${cortoBando(S.yo, b.rol)}</div><div class="nave">${'<i></i>'.repeat(R.rol(b.rol).largo)}</div><div class="d">${R.PODERES[R.rol(b.rol).poder].nombre}</div></button>`).join('')}</div>
     <div class="botones"><button class="btn chico" data-act="girar" ${S.sel === null ? 'disabled' : ''}>${icono('girar')} Girar</button>
       <button class="btn chico" data-act="azar">${icono('dado')} Al azar</button>
@@ -114,15 +115,15 @@ function pintarTabla() {
     <div class="botones" style="margin-top:8px">${S.yo === 'h' && !S.conectado ? `<button class="btn azul" data-act="invitar">${icono('botella')} Mandar el link</button>` : ''}<button class="btn" data-act="vista">${icono('ojo')} ${S.vista === 'mio' ? 'Aguas enemigas' : 'Mi flota'}</button></div>`;
   } else if (S.fase === 'combate' && est) {
     if (est.turno === S.yo && !S.ocupado) {
-      const fichas = [`<button class="ficha${!S.poder ? ' sel' : ''}" data-act="poder" data-p=""><div class="n">${icono('tiro')} Tiro</div><div class="d">Un cañonazo</div></button>`];
+      const fichas = [`<button class="ficha${!S.poder ? ' sel' : ''}" data-act="poder" data-p=""><span class="hx">${icono('tiro')}</span><span class="n">Tiro</span></button>`];
       for (const Ro of R.ROLES) {
         const P = R.PODERES[Ro.poder], b = est.mia.barcos.find(x => x.rol === Ro.id);
         const ok = est.poderes[Ro.poder], tag = b && b.hundido ? 'hundido' : est.usados[S.yo][Ro.poder] ? 'usado' : '';
-        fichas.push(`<button class="ficha${S.poder === Ro.poder ? ' sel' : ''}" data-act="poder" data-p="${Ro.poder}" ${ok ? '' : 'disabled'}>${tag ? `<span class="tag">${tag}</span>` : ''}<div class="n">${icono(Ro.poder)} ${P.nombre}</div><div class="d">${P.corto}</div></button>`);
+        fichas.push(`<button class="ficha${S.poder === Ro.poder ? ' sel' : ''}" data-act="poder" data-p="${Ro.poder}" ${ok ? '' : 'disabled'}>${tag ? `<span class="tag">${tag}</span>` : ''}<span class="hx">${icono(Ro.poder)}</span><span class="n">${P.nombre}</span></button>`);
       }
       if (S.cfg.noche) {
         const puede = est.mia.barcos.some((b, i) => R.maniobraLegal(S.cfg, est.mia, i, 1) || R.maniobraLegal(S.cfg, est.mia, i, -1));
-        fichas.push(`<button class="ficha${S.poder === 'maniobra' ? ' sel' : ''}" data-act="poder" data-p="maniobra" ${puede ? '' : 'disabled'}><div class="n">${icono('maniobra')} Maniobrar</div><div class="d">Escabullir un barco tocado</div></button>`);
+        fichas.push(`<button class="ficha${S.poder === 'maniobra' ? ' sel' : ''}" data-act="poder" data-p="maniobra" ${puede ? '' : 'disabled'}><span class="hx">${icono('maniobra')}</span><span class="n">Maniobrar</span></button>`);
       }
       const { texto, ok } = textoFuego();
       const girar = S.poder === 'andanada' || S.poder === 'sondeo';
@@ -229,7 +230,7 @@ function sincronizar(restaurando = false) {
 }
 
 function prepararTablero() {
-  esc.portada(false);
+  esc.portada(false); esc.dormir(false);
   esc.setNoche(S.cfg.noche);
   esc.ponerMapa(R.mapaPorId(S.cfg.mapa));
   esc.limpiarMarcas(); esc.quitarRestos(); esc.limpiarRival(); esc.ponerFuegos([]);
@@ -249,7 +250,7 @@ function pintarPortada() {
   $('arriba').hidden = true; $('abajo').hidden = true; $('portada').hidden = false; $('chat').hidden = true;
   esc.resaltar('rival', []); esc.resaltar('mio', []);
   esc.setNoche(A.noche); esc.ponerMapa(R.MAPAS[1]); esc.limpiarMarcas(); esc.quitarRestos(); esc.limpiarRival(); esc.ponerFuegos([]); esc.flota([], 'p'); esc.ponerMina(null);
-  esc.portada(true);
+  esc.portada(true); esc.dormir(true); // la portada es una ilustración: el río 3D descansa
   const sala = params.get('sala');
   const cpu = leer('pdp-cpu'); const cpuViva = cpu && cpu.cfg && !R.reconstruir(cpu.cfg, 'h', cpu.flota, cpu.log).fin && cpu.listo;
   const ult = leer('pdp-ultima');
@@ -267,7 +268,6 @@ function pintarPortada() {
   h += `<div class="interruptor${A.noche ? ' on' : ''}" data-p="noche"><div class="t"><b>Combate nocturno</b><span>De noche no se ve nada: bengalas, memoria y maniobras</span></div><div class="llave"></div></div>
     <div class="pie"><button class="btn" data-p="reglas">Cómo se juega</button>${instalar ? `<button class="btn" data-p="instalar">Instalar</button>` : ''}<button class="btn" data-p="sonido">${A.sonido ? 'Sonido: sí' : 'Sonido: no'}</button></div>`;
   $('menuPortada').innerHTML = h;
-  $('duo').innerHTML = retrato('p') + '<span class="vs">VS</span>' + retrato('r');
 }
 $('menuPortada').addEventListener('click', e => {
   const b = e.target.closest('[data-p]'); if (!b) return;
@@ -288,8 +288,12 @@ $('menuPortada').addEventListener('click', e => {
 // =====================================================================
 //  MODALES
 // =====================================================================
-function modal(html, alCerrar) {
-  $('modalC').innerHTML = `<button class="x" data-m="cerrar" aria-label="Cerrar">×</button>` + html;
+function modal(html, alCerrar, tipo = '') {
+  const busca = tipo === 'busca';
+  $('modal').className = 'capa ' + (busca ? 'busca' : 'oscura');
+  $('modalC').className = busca ? '' : 'pergamino';
+  $('modalC').style.cssText = busca ? 'display:flex;flex-direction:column;align-items:center;max-height:100%;overflow:auto;width:100%;padding:8px 0' : '';
+  $('modalC').innerHTML = (busca ? '' : `<button class="x" data-m="cerrar" aria-label="Cerrar">×</button>`) + html;
   $('modal').hidden = false; $('modal')._cerrar = alCerrar;
 }
 function cerrarModal() { $('modal').hidden = true; const f = $('modal')._cerrar; $('modal')._cerrar = null; f && f(); }
@@ -316,7 +320,7 @@ $('modal').addEventListener('click', e => {
 function elegirNivel() {
   modal(`<h2>Contra la compu</h2><p class="sub">Elegí el rango de tu rival realista</p>
     <div class="niveles">${NIVELES.map((n, i) => `<button class="nivel${n.id === S.nivel ? ' sel' : ''}" data-m="nivel" data-n="${n.id}"><span class="rk">${n.nombre}</span><span class="tx">${n.texto}</span><span class="galon">${'<i></i>'.repeat(i + 1)}</span></button>`).join('')}</div>
-    <p style="font-size:14px;font-style:italic;margin:0 0 10px;color:#6b5434">${A.noche ? 'Combate nocturno activado.' : 'Combate de día.'} Lo podés cambiar en la portada.</p>
+    <p style="font-size:14px;font-style:italic;margin:0 0 10px;color:var(--suave)">${A.noche ? 'Combate nocturno activado.' : 'Combate de día.'} Lo podés cambiar en la portada.</p>
     <button class="btn fuego" style="width:100%" data-m="zarparCpu">${icono('ancla')} ¡A la batalla!</button>`);
 }
 function mostrarReglas() {
@@ -333,7 +337,7 @@ function menu() {
   const q = A.calidad;
   modal(`<h2>Menú</h2>
     <div class="pila">
-      <div><b style="font-family:var(--sc);font-weight:400">Gráficos</b> <span style="font-size:13px;font-style:italic;color:#6b5434">(si anda lento, bajalos)</span>
+      <div><b style="font-family:var(--sc);font-weight:400">Gráficos</b> <span style="font-size:13px;font-style:italic;color:var(--suave)">(si anda lento, bajalos)</span>
       <div class="opciones" style="margin-top:5px">${[['auto', 'Auto'], ['alta', 'Alta'], ['media', 'Media'], ['baja', 'Baja']].map(([k, n]) => `<button class="${q === k ? 'sel' : ''}" data-m="calidad" data-c="${k}">${n}</button>`).join('')}</div></div>
       ${S.modo === 'online' && S.yo === 'h' ? `<button class="btn azul" data-m="invitar">${icono('botella')} Volver a mandar el link</button>` : ''}
       <button class="btn" data-m="reglas">Cómo se juega</button>
@@ -350,7 +354,7 @@ function mostrarInvitacion() {
       ${navigator.share ? `<button class="btn" data-m="compartir">Compartir…</button>` : ''}
       <button class="btn" data-m="copiar">Copiar link</button>
     </div>
-    <p style="font-size:13.5px;font-style:italic;color:#6b5434;margin:10px 0 0">Vos comandás a los patriotas y tu amigo a los realistas. ${S.cfg && S.cfg.noche ? 'Es un combate nocturno.' : ''}</p>`);
+    <p style="font-size:13.5px;font-style:italic;color:var(--suave);margin:10px 0 0">Vos comandás a los patriotas y tu amigo a los realistas. ${S.cfg && S.cfg.noche ? 'Es un combate nocturno.' : ''}</p>`);
 }
 function irAlInicio() {
   if (S.red) { S.red.cerrar(); S.red = null; }
@@ -704,15 +708,24 @@ function mostrarFin() {
   const est = S.est; if (!est) return;
   const gane = est.fin === S.yo, yo = est.stats[S.yo], el = est.stats[rival()];
   const prec = s => s.tiros ? Math.round(s.aciertos / s.tiros * 100) + '%' : '—';
-  modal(`<h2>${gane ? '¡Victoria!' : 'Derrota'}</h2>
-    <p class="sub">${gane ? (bandoDe(S.yo) === 'p' ? 'Brown se queda con el río.' : 'La escuadra realista domina el Plata.') : `${NombreRival()} ganó esta vez.`}</p>
-    <table style="width:100%;border-collapse:collapse;font-size:16px;margin-bottom:12px">
-      <tr style="font-family:var(--sc)"><td></td><td style="text-align:center">Vos</td><td style="text-align:center">${S.modo === 'cpu' ? 'Romarate' : 'Tu amigo'}</td></tr>
-      <tr><td>Tiros</td><td style="text-align:center">${yo.tiros}</td><td style="text-align:center">${el.tiros}</td></tr>
-      <tr><td>Aciertos</td><td style="text-align:center">${yo.aciertos} (${prec(yo)})</td><td style="text-align:center">${el.aciertos} (${prec(el)})</td></tr>
-      <tr><td>Barcos hundidos</td><td style="text-align:center">${yo.hundidos}</td><td style="text-align:center">${el.hundidos}</td></tr>
-    </table>
-    <div class="pila"><button class="btn fuego" data-m="revancha">${icono('fuego')} Revancha</button><button class="btn" data-m="ver">Ver el río</button><button class="btn" data-m="inicio">Volver a la portada</button></div>`);
+  // se busca al vigía del bando que perdió, empapado
+  const perdedor = gane ? bandoDe(rival()) : bandoDe(S.yo), P = PERSONAJES[perdedor];
+  const ganador = gane ? yo : el;
+  const premio = (ganador.hundidos * 150 + ganador.aciertos * 25 + Math.max(0, 60 - ganador.tiros) * 5).toLocaleString('es-AR');
+  modal(`<div class="cartelSB">
+      <b class="sb">SE BUSCA</b>
+      <div class="foto"><img src="vigias/${P.id}-hundido.webp" alt=""></div>
+      <b class="vivo">VIVO O EMPAPADO</b>
+      <b class="nombre">${P.nombre.toUpperCase()}</b>
+      <b class="premio">$ ${premio} <small>pesos fuertes</small></b>
+      <table>
+        <tr><td></td><td>Vos</td><td>${S.modo === 'cpu' ? 'Romarate' : 'Tu amigo'}</td></tr>
+        <tr><td>Tiros</td><td>${yo.tiros}</td><td>${el.tiros}</td></tr>
+        <tr><td>Aciertos</td><td>${yo.aciertos} (${prec(yo)})</td><td>${el.aciertos} (${prec(el)})</td></tr>
+        <tr><td>Hundidos</td><td>${yo.hundidos}</td><td>${el.hundidos}</td></tr>
+      </table>
+    </div>
+    <div class="finBotones"><button class="btn fuego" data-m="revancha"><span>${icono('fuego')} Revancha</span></button><button class="btn" data-m="ver"><span>Ver el río</span></button><button class="btn" data-m="inicio"><span>Volver a la portada</span></button></div>`, null, 'busca');
 }
 
 // =====================================================================
@@ -778,7 +791,7 @@ function entrarComoInvitado(sala) {
   S.fase = 'conectando'; prepararSinCfg(); conectar();
 }
 function prepararSinCfg() {
-  esc.portada(false);
+  esc.portada(false); esc.dormir(false);
   $('arriba').hidden = false; $('abajo').hidden = false; $('portada').hidden = true; $('bChat').hidden = false;
   esc.ponerMapa(R.MAPAS[0]); esc.grilla(true); esc.mirar('mio', true);
   actualizarTodo();
@@ -905,7 +918,7 @@ function arrancar() {
 }
 precargar();
 arrancar();
-window.__dbg = { encolar, R, estado };
+window.__dbg = { encolar, R, estado, mostrarFin };
 window.__listo = true;
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

@@ -1,9 +1,9 @@
 // Proa del Plata · service worker
 // Cambiar VERSION cada vez que se publica, para que los celulares bajen lo nuevo.
-const VERSION = 'pdp-2026-10-17e';
+const VERSION = 'pdp-2026-10-17f';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
-  './js/app.js', './js/reglas.js', './js/ia.js', './js/escena.js', './js/barcos.js', './js/sonido.js', './js/red.js', './js/vigias.js', './texturas/agua-normales.jpg', './modelos/barcos.glb', './texturas/madera-casco.webp', './texturas/madera-cubierta.webp', './texturas/lona-vela.webp',
+  './js/app.js', './js/reglas.js', './js/ia.js', './js/escena.js', './js/barcos.js', './js/sonido.js', './js/red.js', './js/vigias.js', './texturas/agua-normales.jpg', './modelos/barcos.glb', './arte/portada.webp', './arte/logo.webp', './texturas/madera-casco.webp', './texturas/madera-cubierta.webp', './texturas/lona-vela.webp',
   './vigias/bermudez-alarma.webp', './vigias/bermudez-averiado.webp', './vigias/bermudez-burla.webp', './vigias/bermudez-catalejo.webp', './vigias/bermudez-festejo.webp', './vigias/bermudez-hundido.webp', './vigias/bermudez-neutro.webp', './vigias/bermudez-victoria.webp', './vigias/chirola-alarma.webp', './vigias/chirola-averiado.webp', './vigias/chirola-burla.webp', './vigias/chirola-catalejo.webp', './vigias/chirola-festejo.webp', './vigias/chirola-hundido.webp', './vigias/chirola-neutro.webp', './vigias/chirola-victoria.webp',
   './iconos/icon-192.png', './iconos/icon-512.png', './iconos/icon-maskable-512.png',
 ];

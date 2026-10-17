@@ -120,8 +120,9 @@ class Casco:
         return s.manga(u) * f * (1 - .13 * max(0, (t - .62) / .38) ** 2), t
     def niveles(s, u):
         sh, q, rg, cb = s.sh(u), s.quilla(u), s.regala(u), s.cubierta(u)
+        k = s.D / .235  # las franjas escalan con el tamaño del casco
         zs = [(-q, 'fondo'), (-q * .8, 'fondo'), (-q * .55, 'fondo'), (-q * .3, 'fondo'), (-q * .1, 'fondo'), (0, 'madera'),
-              (.035, 'madera'), (.07 + sh, 'negro'), (.10 + sh, 'banda'), (.15 + sh, 'banda'), (.20 + sh, 'madera'),
+              (.035 * k, 'madera'), (.07 * k + sh, 'negro'), (.10 * k + sh, 'banda'), (.15 * k + sh, 'banda'), (.20 * k + sh, 'madera'),
               (cb, 'madera'), (rg - .016, 'negro'), (rg, None)]
         return [(z, m) for z, m in zs]  # el material es el de la franja que arranca en ese nivel
 
@@ -230,19 +231,26 @@ def vela_cangreja(m, P, panza, lado=1):
 
 
 # ---------- palos ----------
-def palo_completo(rol, idx, padre, casco, u, h, ancho_v, velas_cuadradas, braza, bandera=False, cangreja=False, estays=(), tri_extra=()):
+def palo_completo(rol, idx, padre, casco, u, h, ancho_v, velas_cuadradas, braza, bandera=False, cangreja=False, estays=(), tri_extra=(), simple=False, latina=None):
     """Palo con mastelero y mastelerillo, cofa, crucetas, vergas, velas y jarcias. Todo relativo al pie del palo."""
     zc = casco.cubierta(u); xm = casco.x(u); pie = Vector((xm, 0, zc))
     g = vacio(f'{rol}_palo_{idx}', padre, pie)
     m = Malla(); j = Malla()
     L = lambda p: Vector(p) - pie  # de coordenadas del barco a coordenadas del palo
-    # palo macho, mastelero, mastelerillo
-    cilindro(m, (0, 0, -.02), (0, 0, .47 * h), .036, .03, 8, 'palo')
-    cilindro(m, (-.03, 0, .40 * h), (-.03, 0, .79 * h), .022, .018, 6, 'palo')
-    cilindro(m, (-.045, 0, .74 * h), (-.045, 0, h), .014, .008, 6, 'palo')
-    cilindro(m, (-.045, 0, h), (-.045, 0, h + .02), .016, .014, 6, 'palo')  # tope
-    caja(m, (-.02, 0, .45 * h), (.17, .24, .014), 'palo')                     # cofa
-    caja(m, (-.035, 0, .775 * h), (.05, .17, .01), 'palo')                     # crucetas
+    if simple:  # un solo palo, sin cofa (barcos chicos)
+        cilindro(m, (0, 0, -.02), (0, 0, h), .028, .016, 7, 'palo')
+        cilindro(m, (0, 0, h), (0, 0, h + .02), .02, .018, 6, 'palo')
+    else:  # palo macho, mastelero, mastelerillo
+        cilindro(m, (0, 0, -.02), (0, 0, .47 * h), .036, .03, 8, 'palo')
+        cilindro(m, (-.03, 0, .40 * h), (-.03, 0, .79 * h), .022, .018, 6, 'palo')
+        cilindro(m, (-.045, 0, .74 * h), (-.045, 0, h), .014, .008, 6, 'palo')
+        cilindro(m, (-.045, 0, h), (-.045, 0, h + .02), .016, .014, 6, 'palo')  # tope
+        caja(m, (-.02, 0, .45 * h), (.17, .24, .014), 'palo')                     # cofa
+        caja(m, (-.035, 0, .775 * h), (.05, .17, .01), 'palo')                     # crucetas
+    if latina:  # vela latina: entena larga y cruzada, vela triangular colgando
+        a, b, c = (Vector(x) for x in latina)
+        cilindro(m, a, b, .012, .009, 5, 'palo')
+        vela_triangulo(m, b, a, c, .09)
     # vergas y velas cuadradas
     R = Matrix.Rotation(braza, 3, 'Z')
     for (zh, zf, wh, wf) in velas_cuadradas:
@@ -253,14 +261,16 @@ def palo_completo(rol, idx, padre, casco, u, h, ancho_v, velas_cuadradas, braza,
         vela_cuadrada(m, zh, zf, wh, wf, panza=.1 + .06 * wh, braza=braza, x0=.03)
     # cangreja (mesana)
     if cangreja:
-        p0 = Vector((-.02, 0, .17 * h)); p1 = Vector((-.02, 0, .46 * h)); p2 = Vector((-.78, 0, .62 * h)); p3 = Vector((-.86, 0, .16 * h))
+        ce = 1.0 if cangreja is True else float(cangreja)  # largo de la botavara
+        alto = .46 if velas_cuadradas or not simple else .78
+        p0 = Vector((-.02, 0, .17 * h)); p1 = Vector((-.02, 0, alto * h)); p2 = Vector((-.78 * ce, 0, (alto + .16) * h)); p3 = Vector((-.86 * ce, 0, .16 * h))
         cilindro(m, p1, p2 + Vector((-.04, 0, .02)), .012, .007, 5, 'palo')
         cilindro(m, p0, p3 + Vector((-.06, 0, -.004)), .013, .009, 5, 'palo')
         vela_cangreja(m, (p0 + Vector((-.02, 0, .01)), p1, p2, p3), .07, lado=1)
         vacio(f'{rol}_bandera_{idx}b', g, pie + p2 + Vector((-.05, 0, .02)))
     for (A, B, C, panza) in tri_extra:
         vela_triangulo(m, L(A), L(B), L(C), panza)
-    if bandera: vacio(f'{rol}_bandera_{idx}', g, pie + Vector((-.045, 0, h + .02)))
+    if bandera: vacio(f'{rol}_bandera_{idx}', g, pie + Vector((0 if simple else -.045, 0, h + .02)))
     # --- jarcias (líneas) ---
     def obenques(z_top, x_top, pies):
         for lado in (-1, 1):
@@ -282,17 +292,22 @@ def palo_completo(rol, idx, padre, casco, u, h, ancho_v, velas_cuadradas, braza,
             uu = casco.u_de(xm + dx); rg = casco.regala(uu) - .025
             out.append(casco.borde(uu, rg, lado) + Vector((0, lado * .03, 0)))
         return out
-    obenques(.44 * h, 0, pies_bajos)
-    def pies_cofa(lado): return [pie + Vector((dx, lado * .115, .455 * h)) for dx in (-.0, -.05, -.1)]
-    obenques(.77 * h, -.03, pies_cofa)
-    def pies_cruceta(lado): return [pie + Vector((dx, lado * .08, .78 * h)) for dx in (-.03, -.07)]
-    for lado in (-1, 1):
-        for p in pies_cruceta(lado): j.linea(Vector((-.045, 0, .97 * h)), L(p))
-    # brandales (al costado, más atrás)
-    for lado in (-1, 1):
-        for dx, zt in ((-.42, .77), (-.52, .97)):
-            uu = casco.u_de(xm + dx); rg = casco.regala(uu) - .02
-            j.linea(Vector((-.04, 0, zt * h)), L(casco.borde(uu, rg, lado) + Vector((0, lado * .03, 0))))
+    if simple:
+        def pies_chicos(lado):
+            return [casco.borde(casco.u_de(xm + dx), casco.regala(casco.u_de(xm + dx)) - .02, lado) for dx in (-.04, -.12)]
+        obenques(.86 * h, 0, pies_chicos)
+    else:
+        obenques(.44 * h, 0, pies_bajos)
+        def pies_cofa(lado): return [pie + Vector((dx, lado * .115, .455 * h)) for dx in (-.0, -.05, -.1)]
+        obenques(.77 * h, -.03, pies_cofa)
+        def pies_cruceta(lado): return [pie + Vector((dx, lado * .08, .78 * h)) for dx in (-.03, -.07)]
+        for lado in (-1, 1):
+            for p in pies_cruceta(lado): j.linea(Vector((-.045, 0, .97 * h)), L(p))
+        # brandales (al costado, más atrás)
+        for lado in (-1, 1):
+            for dx, zt in ((-.42, .77), (-.52, .97)):
+                uu = casco.u_de(xm + dx); rg = casco.regala(uu) - .02
+                j.linea(Vector((-.04, 0, zt * h)), L(casco.borde(uu, rg, lado) + Vector((0, lado * .03, 0))))
     # estays hacia adelante
     for z_rel, destino in estays: j.linea(Vector((0, 0, z_rel * h)), L(destino))
     m.objeto(f'{rol}_palo_{idx}_m', g, pie, locales=True)
@@ -394,7 +409,145 @@ def fragata():
     return raiz
 
 
+# ---------- piezas comunes de los barcos chicos ----------
+def mitades_de(rol, C, nPopa, nProa):
+    raiz = vacio(rol); mit = {}
+    for nombre, (u0, u1, n) in (('popa', (0, .5, nPopa)), ('proa', (.5, 1, nProa))):
+        g = vacio(f'{rol}_{nombre}', raiz); m = Malla(); C.armar(m, u0, u1, n); mit[nombre] = (g, m)
+    return raiz, mit
+
+def portas(C, mit, n, u0, u1, zc0, escala=1.0):
+    for i in range(n):
+        u = u0 + i * ((u1 - u0) / max(1, n - 1)); zc = zc0 + C.sh(u)
+        for lado in (-1, 1):
+            p = C.borde(u, zc, lado); m = mit(p.x); e = escala
+            caja(m, p + Vector((0, lado * .004, 0)), (.058 * e, .012, .05 * e), 'porta')
+            bisagra = p + Vector((0, lado * .008, .027 * e)); a = math.radians(115)
+            d = Vector((0, lado * math.sin(a), -math.cos(a)))
+            caja(m, bisagra + d * .026 * e, (.06 * e, .006, .052 * e), 'tapa', (Vector((1, 0, 0)), d.cross(Vector((1, 0, 0))).normalized(), d))
+            cilindro(m, p + Vector((0, -lado * .01, -.004)), p + Vector((0, lado * .05 * e, -.002)), .013 * e, .01 * e, 7, 'hierro')
+
+def espejo(C, mit, ventanas, faroles):
+    xs = C.x(0) - .004; zr = C.regala(0); w = C.manga(0)
+    for i in range(ventanas):
+        y = (-.5 + (i + .5) / ventanas) * w * 1.1
+        caja(mit(-1), (xs, y, zr - .06), (.008, .04, .034), 'ventana')
+    caja(mit(-1), (xs - .002, 0, zr - .024), (.01, w * 1.6, .014), 'dorado')
+    for y in faroles:
+        cilindro(mit(-1), (xs + .02, y, zr), (xs + .02, y, zr + .1), .005, .005, 4, 'hierro', tapas=False)
+        cilindro(mit(-1), (xs + .02, y, zr + .1), (xs + .02, y, zr + .14), .018, .013, 8, 'farol')
+
+def baupres(C, mit, largo, ang=20):
+    up = C.regala(1); proa = Vector((C.x(.97, 1), 0, up - .03))
+    dirb = Vector((math.cos(math.radians(ang)), 0, math.sin(math.radians(ang))))
+    cilindro(mit(1), proa - dirb * .18, proa + dirb * largo, .024, .013, 7, 'palo')
+    return proa, dirb
+
+def cerrar(rol, mit_d):
+    for nombre, (g, m) in mit_d.items(): m.objeto(f'{rol}_{nombre}_m', g)
+
+
+# ---------- el bergantín: dos palos con velas cuadradas ----------
+def bergantin():
+    rol = 'bergantin'; L = 3 * .92
+    C = Casco(L=L, B=.34, K=.18, D=.2, sheer_proa=.09, sheer_popa=.06)
+    raiz, md = mitades_de(rol, C, 12, 18)
+    mit = lambda x: md['popa' if x < 0 else 'proa'][1]; grupo = lambda x: md['popa' if x < 0 else 'proa'][0]
+    portas(C, mit, 6, .24, .74, .128, .9)
+    espejo(C, mit, 3, (0,))
+    proa, dirb = baupres(C, mit, 1.05)
+    for u in (.55,):
+        x = C.x(u); caja(mit(x), (x, 0, C.cubierta(u) + .014), (.14, .15, .028), 'negro')
+    x = C.x(.12); z = C.cubierta(.12)
+    cilindro(mit(x), (x, -.025, z + .06), (x, .025, z + .06), .042, .042, 12, 'madera'); caja(mit(x), (x, 0, z + .026), (.026, .06, .052), 'madera')
+    ua, ut = .4, .72; h_a, h_t = 2.5, 2.3
+    pie_t = Vector((C.x(ut), 0, C.cubierta(ut))); pie_a = Vector((C.x(ua), 0, C.cubierta(ua)))
+    palo_completo(rol, 0, grupo(C.x(ua)), C, ua, h_a, 1.0,
+                  [(.40, .14, 1.25, 1.38), (.70, .46, 1.0, 1.22), (.93, .76, .68, .9)], .2, cangreja=1.05,
+                  estays=[(.44, pie_t + Vector((0, 0, .03))), (.76, pie_t + Vector((-.02, 0, .45 * h_t)))])
+    palo_completo(rol, 1, grupo(C.x(ut)), C, ut, h_t, .9,
+                  [(.40, .15, 1.15, 1.28), (.70, .46, .92, 1.12), (.93, .76, .62, .82)], .2, bandera=True,
+                  estays=[(.44, proa + dirb * .6), (.76, proa + dirb * 1.0)],
+                  tri_extra=[(pie_t + Vector((0, 0, .74 * h_t)), proa + dirb * .98, proa + Vector((.12, 0, .17)), .055),
+                             (pie_t + Vector((0, 0, .52 * h_t)), proa + dirb * .5, proa + Vector((0, 0, .14)), .045)])
+    cerrar(rol, md); return raiz
+
+
+# ---------- la goleta: casco fino, dos palos con cangrejas y una gavia arriba ----------
+def goleta():
+    rol = 'goleta'; L = 3 * .92
+    C = Casco(L=L, B=.29, K=.17, D=.17, sheer_proa=.08, sheer_popa=.04, espejo=.66, lanzamiento=.2)
+    raiz, md = mitades_de(rol, C, 12, 18)
+    mit = lambda x: md['popa' if x < 0 else 'proa'][1]; grupo = lambda x: md['popa' if x < 0 else 'proa'][0]
+    portas(C, mit, 4, .3, .7, .108, .8)
+    espejo(C, mit, 2, (0,))
+    proa, dirb = baupres(C, mit, 1.2, 14)
+    x = C.x(.5); caja(mit(x), (x, 0, C.cubierta(.5) + .014), (.12, .12, .028), 'negro')
+    x = C.x(.1); z = C.cubierta(.1)
+    cilindro(mit(x), (x, -.022, z + .055), (x, .022, z + .055), .038, .038, 12, 'madera'); caja(mit(x), (x, 0, z + .024), (.024, .05, .048), 'madera')
+    um, ut = .3, .64; h_m, h_t = 2.3, 2.15
+    pie_t = Vector((C.x(ut), 0, C.cubierta(ut))); pie_m = Vector((C.x(um), 0, C.cubierta(um)))
+    palo_completo(rol, 0, grupo(C.x(um)), C, um, h_m, .7, [], 0, cangreja=1.0, bandera=True, simple=True,
+                  estays=[(.86, pie_t + Vector((0, 0, .86 * h_t)))])
+    palo_completo(rol, 1, grupo(C.x(ut)), C, ut, h_t, .7, [(.93, .8, .52, .62)], .1, cangreja=.95, simple=True,
+                  estays=[(.8, proa + dirb * 1.15)],
+                  tri_extra=[(pie_t + Vector((0, 0, .8 * h_t)), proa + dirb * 1.12, proa + Vector((.14, 0, .14)), .06)])
+    cerrar(rol, md); return raiz
+
+
+# ---------- la cañonera: chica, un palo y un cañonazo en la proa ----------
+def canonera():
+    rol = 'canonera'; L = 2 * .92
+    C = Casco(L=L, B=.28, K=.12, D=.15, sheer_proa=.06, sheer_popa=.04, espejo=.75, lanzamiento=.06)
+    raiz, md = mitades_de(rol, C, 9, 12)
+    mit = lambda x: md['popa' if x < 0 else 'proa'][1]; grupo = lambda x: md['popa' if x < 0 else 'proa'][0]
+    espejo(C, mit, 0, (0,))
+    # el cañón grande sobre su cureña, apuntando por la proa
+    u = .8; x = C.x(u); z = C.cubierta(u)
+    caja(mit(x), (x - .03, 0, z + .03), (.18, .13, .06), 'madera')
+    cilindro(mit(x), (x - .14, 0, z + .085), (x + .2, 0, z + .095), .045, .03, 10, 'hierro')
+    cilindro(mit(x), (x + .19, 0, z + .095), (x + .22, 0, z + .095), .036, .036, 10, 'hierro')
+    for lado in (-1, 1): cilindro(mit(x), (x - .02, lado * .06, z + .03), (x - .02, lado * .08, z + .03), .03, .03, 8, 'madera')
+    # remos
+    for u in (.3, .45, .6):
+        for lado in (-1, 1):
+            p = C.borde(u, C.regala(u), lado)
+            cilindro(mit(p.x), p, p + Vector((-.05, lado * .32, -.22)), .007, .007, 4, 'madera', tapas=False)
+    proa, dirb = baupres(C, mit, .5, 16)
+    ua = .42; h = 1.55
+    palo_completo(rol, 0, grupo(C.x(ua)), C, ua, h, .5, [], 0, cangreja=.62, simple=True,
+                  estays=[(.9, proa + dirb * .48)],
+                  tri_extra=[(Vector((C.x(ua), 0, C.cubierta(ua) + .88 * h)), proa + dirb * .46, Vector((C.x(.68), 0, C.cubierta(.68) + .12)), .05)])
+    cerrar(rol, md); return raiz
+
+
+# ---------- el falucho: el más chico, con vela latina ----------
+def falucho():
+    rol = 'falucho'; L = 2 * .92
+    C = Casco(L=L, B=.22, K=.1, D=.13, sheer_proa=.09, sheer_popa=.05, espejo=.4, lanzamiento=.1)
+    raiz, md = mitades_de(rol, C, 9, 12)
+    mit = lambda x: md['popa' if x < 0 else 'proa'][1]; grupo = lambda x: md['popa' if x < 0 else 'proa'][0]
+    # bancadas y remos
+    for u in (.35, .5, .65):
+        x = C.x(u); caja(mit(x), (x, 0, C.cubierta(u) + .02), (.04, C.ancho(u, C.cubierta(u))[0] * 1.8, .012), 'madera')
+    for u in (.38, .58):
+        for lado in (-1, 1):
+            p = C.borde(u, C.regala(u), lado)
+            cilindro(mit(p.x), p, p + Vector((-.06, lado * .28, -.2)), .006, .006, 4, 'madera', tapas=False)
+    # espolón de proa
+    pr = Vector((C.x(.98, 1), 0, C.regala(1) - .02)); cilindro(mit(1), pr - Vector((.1, 0, .02)), pr + Vector((.22, 0, .05)), .016, .008, 6, 'palo')
+    ua = .56; h = 1.15; xm = C.x(ua); zm = C.cubierta(ua)
+    # entena: de abajo adelante a arriba atrás; la vela cuelga hasta la escota en popa (coordenadas del palo)
+    a = (.62, 0, .22); b = (-.72, 0, h + .55); c = (-.6, 0, .14)
+    palo_completo(rol, 0, grupo(xm), C, ua, h, .5, [], 0, bandera=True, simple=True, latina=(a, b, c))
+    cerrar(rol, md); return raiz
+
+
 fragata()
+bergantin()
+goleta()
+canonera()
+falucho()
 bpy.context.view_layer.update()
 tris = 0
 for o in bpy.data.objects:

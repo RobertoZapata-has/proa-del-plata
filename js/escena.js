@@ -135,6 +135,7 @@ export function crearEscena(canvas) {
   cam.position.set(0, 14, SEP + 14);
 
   let pal = PALETAS.dia, noche = false, expBase = .62;
+  let dormido = false;
 
   // ---------- Cielo ----------
   // de día: cielo físico (Sky) · de noche: cielo propio con luna y estrellas
@@ -741,6 +742,7 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
   function cuadro() {
     if (pausa) return;
     if (!unSolo) requestAnimationFrame(cuadro);
+    if (dormido && !unSolo) return; // tapado por la portada: no gastar batería
     const dt = Math.min(reloj3.getDelta(), .05) * velocidad, t = reloj3.elapsedTime; reloj = t;
     uCielo.uT.value = t;
     for (let i = tweens.length - 1; i >= 0; i--) { const w = tweens[i]; w.t += dt; const k = Math.min(1, w.t / w.dur); w.fn(w.e(k)); if (k >= 1) { tweens.splice(i, 1); w.res(); } }
@@ -862,6 +864,7 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     pantallaDe(tab, r, c) { const p = centroCelda(tab, r, c).project(cam); const rect = canvas.getBoundingClientRect(); return { x: rect.left + (p.x + 1) / 2 * rect.width, y: rect.top + (1 - p.y) / 2 * rect.height }; },
     alCuadro: fn => { onCuadro = fn; },
     fijarCamara(c) { camFija = c; },
+    dormir(v) { dormido = !!v; },
     pausar(v) { const antes = pausa; pausa = !!v; if (antes && !pausa) { reloj3.getDelta(); requestAnimationFrame(cuadro); } },
     avanzar(seg, paso = 1 / 30) { const p = pausa; pausa = false; const real = reloj3.getDelta; let tt = reloj3.elapsedTime; reloj3.getDelta = () => { tt += paso; reloj3.elapsedTime = tt; return paso; }; for (let i = 0; i < Math.round(seg / paso); i++) { pausa = false; cuadroUno(); } reloj3.getDelta = real; pausa = p; },
     portada(activa) { // la escuadra navegando para la portada
