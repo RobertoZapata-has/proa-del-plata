@@ -429,7 +429,7 @@ function actualizarTodo() {
     else if (est.turno === S.yo) cartel('Tu turno', S.poder ? R.PODERES[S.poder]?.nombre || 'Maniobra' : (S.cfg.noche ? 'Combate nocturno · ' : '') + 'Elegí dónde disparar', true);
     else cartel(S.modo === 'cpu' ? 'Turno de Romarate' : 'Turno de tu amigo', S.cfg.noche ? 'Combate nocturno' : R.mapaPorId(S.cfg.mapa).nombre, false);
   } else if (S.fase === 'fin' && est) cartel(est.fin === S.yo ? '¡Victoria!' : 'Derrota', est.fin === S.yo ? 'El río es tuyo' : `${NombreRival()} se quedó con el río`, est.fin === S.yo);
-  pintarTabla(); pintarMira();
+  pintarTabla(); pintarMira(); precargarFinal();
 }
 
 // ---------- tocar el río ----------
@@ -588,7 +588,7 @@ async function procesar(ev, animar) {
   if (S.pend && ev.by === S.yo && ev.n === S.pend.n) S.pend = null;
   const antes = S.est;
   S.log.push(ev); S.ocupado = true;
-  const est = estado(); guardar();
+  const est = estado(); guardar(); precargarFinal();
   recientes = new Set();
   if (ev.res) ev.res.forEach(x => recientes.add(x.r + ',' + x.c));
   if (ev.k === 'bengala') R.areaDe('bengala', ev.r, ev.c).forEach(([a, b]) => recientes.add(a + ',' + b));
@@ -635,8 +635,16 @@ async function animarEvento(ev, antes, est) {
       await esperar(700);
     }
     // hundimientos: como en una película
-    for (const h of ev.hund) {
+    for (const [k, h] of ev.hund.entries()) {
       const bandoH = mio ? elB : yoB;
+      if (est.fin && k === ev.hund.length - 1) { // el último barco de la flota: el corto animado
+        const v = await videoFinal(bandoH);
+        if (v) {
+          esc.hundir(tab, h, bandoH, {}); Sonido.hundido(); if (navigator.vibrate) try { navigator.vibrate([120, 60, 220]); } catch (e) {}
+          await reproducirFinal(v, bandoH);
+          continue;
+        }
+      }
       document.body.classList.add('pelicula'); $('cine').classList.add('on');
       await esc.hundir(tab, h, bandoH, { cine: true, alGolpe: () => { Sonido.hundido(); gotas(); if (navigator.vibrate) try { navigator.vibrate(mio ? [60] : [120, 60, 220]); } catch (e) {} } });
       $('cine').classList.remove('on'); document.body.classList.remove('pelicula');
@@ -679,6 +687,34 @@ async function animarEvento(ev, antes, est) {
       aviso(`La ${nombreBarco(S.yo, b.rol)} se escabulle en la oscuridad`, 'oro');
     } else { Sonido.maniobra(); aviso(`${NombreRival()} maniobró en la oscuridad: perdiste su rastro`, 'rojo', 3500); await esperar(600); }
   }
+}
+
+// ---------- el corto del último barco (video con la bandera del bando que se hunde) ----------
+const videos = {};
+function videoFinal(bando) { // baja el video entero antes, así no se corta al reproducir
+  if (!videos[bando]) videos[bando] = fetch(`video/final-${bando}.mp4`).then(r => { if (!r.ok) throw 0; return r.blob(); }).then(b => URL.createObjectURL(b)).catch(() => { videos[bando] = null; return null; });
+  return videos[bando];
+}
+function precargarFinal() {
+  const est = S.est; if (!est || S.fase !== 'combate') return;
+  if (est.mia.barcos.filter(b => !b.hundido).length <= 1) videoFinal(bandoDe(S.yo));
+  if (est.hundidosRival.length >= R.ROLES.length - 1) videoFinal(bandoDe(rival()));
+}
+function reproducirFinal(url, bando) {
+  return new Promise(res => {
+    const f = $('final');
+    f.innerHTML = `<div class="tit">¡SE HUNDE LA ÚLTIMA NAVE!<small>${bando === 'p' ? 'La escuadra patriota se va a pique' : 'La escuadra realista se va a pique'}</small></div>`;
+    const v = document.createElement('video');
+    v.src = url; v.playsInline = true; v.setAttribute('playsinline', ''); v.preload = 'auto'; v.muted = !A.sonido; v.controls = false; v.disablePictureInPicture = true;
+    f.appendChild(v); f.hidden = false; requestAnimationFrame(() => f.classList.add('on'));
+    let listo = false;
+    const fin = () => { if (listo) return; listo = true; f.classList.remove('on'); setTimeout(() => { f.hidden = true; f.innerHTML = ''; res(); }, 450); };
+    v.addEventListener('ended', fin); v.addEventListener('error', fin);
+    // por las dudas: si en 16 s no terminó (video trabado), seguimos igual
+    let ultimo = -1, quieto = 0;
+    const vigia = setInterval(() => { if (listo) return clearInterval(vigia); if (v.currentTime === ultimo) { if (++quieto > 8) { clearInterval(vigia); fin(); } } else { quieto = 0; ultimo = v.currentTime; } }, 1000);
+    setTimeout(() => v.play().catch(() => { v.muted = true; v.play().catch(fin); }), 350);
+  });
 }
 
 function gotas() {
@@ -918,7 +954,7 @@ function arrancar() {
 }
 precargar();
 arrancar();
-window.__dbg = { encolar, R, estado, mostrarFin };
+window.__dbg = { encolar, R, estado, mostrarFin, videoFinal, reproducirFinal };
 window.__listo = true;
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

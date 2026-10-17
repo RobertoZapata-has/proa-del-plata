@@ -1,6 +1,6 @@
 // Proa del Plata · service worker
 // Cambiar VERSION cada vez que se publica, para que los celulares bajen lo nuevo.
-const VERSION = 'pdp-2026-10-17f';
+const VERSION = 'pdp-2026-10-17g';
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './js/app.js', './js/reglas.js', './js/ia.js', './js/escena.js', './js/barcos.js', './js/sonido.js', './js/red.js', './js/vigias.js', './texturas/agua-normales.jpg', './modelos/barcos.glb', './arte/portada.webp', './arte/logo.webp', './texturas/madera-casco.webp', './texturas/madera-cubierta.webp', './texturas/lona-vela.webp',
@@ -17,6 +17,7 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   const req = e.request; if (req.method !== 'GET') return;
+  if (req.headers.has('range')) return; // los pedazos de video van directo
   const url = new URL(req.url);
   // La página y el código: primero internet (para recibir actualizaciones), si no hay, lo guardado.
   if (req.mode === 'navigate' || (url.origin === location.origin && url.pathname.endsWith('.js'))) {

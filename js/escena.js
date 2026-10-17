@@ -59,6 +59,7 @@ class Particulas {
       transparent: true, depthWrite: false, blending: aditivo ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
     this.obj = new THREE.Points(g, m); this.obj.frustumCulled = false; this.obj.renderOrder = aditivo ? 6 : 5;
+    this.obj.layers.set(1); // el humo no se refleja en el agua (dejaba manchas oscuras)
     escena.add(this.obj);
     this.p = [];
   }
@@ -98,7 +99,7 @@ function texMarca(tipo) {
   if (tipo === 'agua') { trazo(16, 'rgba(20,14,8,.35)', () => g.arc(64, 64, 30, 0, 7)); trazo(9, '#f4ead2', () => g.arc(64, 64, 30, 0, 7)); }
   if (tipo === 'aguaMia') { trazo(7, 'rgba(230,240,250,.8)', () => g.arc(64, 64, 22, 0, 7)); }
   if (tipo === 'impacto' || tipo === 'hundido') {
-    if (tipo === 'hundido') { g.fillStyle = 'rgba(70,8,4,.55)'; g.fillRect(6, 6, 116, 116); }
+    if (tipo === 'hundido') { g.fillStyle = 'rgba(232,49,42,.32)'; g.fillRect(8, 8, 112, 112); g.strokeStyle = 'rgba(255,255,255,.7)'; g.lineWidth = 4; g.strokeRect(8, 8, 112, 112); }
     const x = () => { g.moveTo(30, 30); g.lineTo(98, 98); g.moveTo(98, 30); g.lineTo(30, 98); };
     trazo(26, 'rgba(25,8,4,.6)', x); trazo(15, tipo === 'hundido' ? '#ff9a6a' : '#e2462c', x);
   }
@@ -131,7 +132,7 @@ export function crearEscena(canvas) {
   renderer.setPixelRatio(dpr);
   const escena = new THREE.Scene();
   const capa = new THREE.Scene(); // marcas nítidas encima del cuadro
-  const cam = new THREE.PerspectiveCamera(40, 1, .1, 700);
+  const cam = new THREE.PerspectiveCamera(40, 1, .1, 700); cam.layers.enable(1);
   cam.position.set(0, 14, SEP + 14);
 
   let pal = PALETAS.dia, noche = false, expBase = .62;
@@ -268,9 +269,10 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     for (const tab of ['mio', 'rival']) {
       const T = tableros[tab]; T.terreno3d.clear();
       const rnd = semilla(mapa.id + tab);
-      const matIsla = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: false });
-      const matArbol = new THREE.MeshStandardMaterial({ color: 0x4d6230, roughness: 1 });
-      const matBanco = new THREE.MeshBasicMaterial({ map: texBanco(), color: 0xd9c08a, transparent: true, opacity: noche ? .25 : .42, depthWrite: false });
+      const matIsla = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .95, flatShading: false, emissive: 0x253a12, emissiveIntensity: noche ? .15 : .55 });
+      const matArbol = new THREE.MeshStandardMaterial({ color: 0x2f9a3c, roughness: .9, emissive: 0x0f3a14, emissiveIntensity: noche ? .1 : .6 });
+      const matTronco = new THREE.MeshStandardMaterial({ color: 0x8a5a32, roughness: 1 });
+      const matBanco = new THREE.MeshBasicMaterial({ map: texBanco(), color: 0xffffff, transparent: true, opacity: noche ? .35 : .9, depthWrite: false });
       for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
         const t = terreno(mapa, r, c), p = centroCelda(tab, r, c);
         if (t === 'isla') {
@@ -281,15 +283,17 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
             const n = 1 + .22 * Math.sin(_v.x * 5 + r) * Math.cos(_v.z * 4 + c) + .1 * Math.sin(_v.y * 9);
             _v.multiplyScalar(n); _v.y = Math.max(-.2, _v.y * .42);
             pa.setXYZ(i, _v.x, _v.y, _v.z);
-            const col = new THREE.Color(_v.y < .05 ? 0xdcc38c : _v.y < .13 ? 0x9a9450 : 0x667a3a);
+            const col = new THREE.Color(_v.y < .04 ? 0xffe3a0 : _v.y < .1 ? 0xe9cf86 : _v.y < .16 ? 0x7ccf4a : 0x4fb53c);
             cols.push(col.r, col.g, col.b);
           }
           g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.computeVertexNormals();
           const m = new THREE.Mesh(g, matIsla); m.position.copy(p); m.rotation.y = rnd() * 6; T.terreno3d.add(m);
           const na = 1 + Math.floor(rnd() * 3);
           for (let k = 0; k < na; k++) {
-            const a = new THREE.Mesh(new THREE.ConeGeometry(.16 + rnd() * .1, .55 + rnd() * .35, 6), matArbol);
-            a.position.set(p.x + (rnd() - .5) * .7, .32 + rnd() * .1, p.z + (rnd() - .5) * .7); T.terreno3d.add(a);
+            const ax = p.x + (rnd() - .5) * .6, az = p.z + (rnd() - .5) * .6, alto = .5 + rnd() * .3;
+            const tr = new THREE.Mesh(new THREE.CylinderGeometry(.03, .045, alto * .5, 5), matTronco); tr.position.set(ax, .2 + alto * .25, az); T.terreno3d.add(tr);
+            const a = new THREE.Mesh(new THREE.IcosahedronGeometry(.17 + rnd() * .08, 0), matArbol); a.scale.y = 1.3;
+            a.position.set(ax, .22 + alto * .55, az); a.rotation.y = rnd() * 6; T.terreno3d.add(a);
           }
         } else if (t === 'banco') {
           const g = new THREE.PlaneGeometry(1.5, 1.5); g.rotateX(-Math.PI / 2); g.rotateY(rnd() * 6);
@@ -299,12 +303,15 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     }
   }
   let _texBanco = null;
-  function texBanco() {
+  function texBanco() { // banco de arena: agua turquesa poco profunda y arena clara en el medio
     if (_texBanco) return _texBanco;
     const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g = cv.getContext('2d');
-    const gr = g.createRadialGradient(64, 64, 8, 64, 64, 62); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.55, 'rgba(255,255,255,.75)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(120,95,50,${Math.random() * .25})`; g.beginPath(); g.ellipse(30 + Math.random() * 68, 30 + Math.random() * 68, 3 + Math.random() * 10, 2 + Math.random() * 4, Math.random() * 3, 0, 7); g.fill(); }
+    const t = g.createRadialGradient(64, 64, 10, 64, 64, 62); t.addColorStop(0, 'rgba(120,230,225,.95)'); t.addColorStop(.7, 'rgba(90,210,220,.6)'); t.addColorStop(1, 'rgba(90,210,220,0)');
+    g.fillStyle = t; g.fillRect(0, 0, 128, 128);
+    g.fillStyle = 'rgba(255,233,170,.95)'; g.beginPath();
+    for (let i = 0; i <= 24; i++) { const a = i / 24 * Math.PI * 2, r = 40 + Math.sin(a * 3) * 5 + Math.cos(a * 5) * 3; g.lineTo(64 + Math.cos(a) * r, 64 + Math.sin(a) * r * .8); }
+    g.fill(); g.strokeStyle = 'rgba(255,255,255,.75)'; g.lineWidth = 3; g.stroke();
+    for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(200,160,90,${.15 + Math.random() * .2})`; g.beginPath(); g.ellipse(44 + Math.random() * 40, 48 + Math.random() * 32, 2 + Math.random() * 5, 1 + Math.random() * 2, Math.random() * 3, 0, 7); g.fill(); }
     _texBanco = new THREE.CanvasTexture(cv); _texBanco.colorSpace = THREE.SRGBColorSpace; return _texBanco;
   }
   function semilla(s) { let a = [...s].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619), 2166136261) >>> 0; return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -774,9 +781,9 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
         const p = f.pos;
         if (f.tipo === 'fuego') {
           fuego.emitir({ x: p.x + (Math.random() - .5) * .25, y: p.y + .02, z: p.z + (Math.random() - .5) * .25, vx: (Math.random() - .5) * .2, vy: .6 + Math.random() * .7, vz: (Math.random() - .5) * .2, vida: .55 + Math.random() * .4, t0: .62, t1: .12, c: [1, .88, .5], c1: [1, .35, .05], a0: 1, a1: 0 });
-          if (Math.random() < .35) humo.emitir({ x: p.x, y: p.y + .45, z: p.z, vx: .25 + Math.random() * .1, vy: .55 + Math.random() * .3, vz: (Math.random() - .5) * .1, vida: 3.2 + Math.random(), t0: .35, t1: 1.6, c: noche ? [.12, .12, .14] : [.16, .14, .12], c1: noche ? [.22, .23, .27] : [.4, .38, .36], a0: .6, a1: 0, entra: .2 });
+          if (Math.random() < .35) humo.emitir({ x: p.x, y: p.y + .45, z: p.z, vx: .25 + Math.random() * .1, vy: .55 + Math.random() * .3, vz: (Math.random() - .5) * .1, vida: 3.2 + Math.random(), t0: .35, t1: 1.6, c: noche ? [.12, .12, .14] : [.3, .28, .27], c1: noche ? [.22, .23, .27] : [.6, .6, .62], a0: .5, a1: 0, entra: .2 });
         } else {
-          humo.emitir({ x: p.x + (Math.random() - .5) * .4, y: p.y + .1, z: p.z + (Math.random() - .5) * .4, vx: .2, vy: .35 + Math.random() * .2, vida: 3.5, t0: .4, t1: 1.5, c: [.25, .23, .22], c1: [.45, .44, .42], a0: .4, a1: 0, entra: .3 });
+          if (Math.random() < .5) humo.emitir({ x: p.x + (Math.random() - .5) * .4, y: p.y + .1, z: p.z + (Math.random() - .5) * .4, vx: .2, vy: .4 + Math.random() * .2, vida: 2.6, t0: .3, t1: 1.1, c: [.62, .62, .64], c1: [.82, .83, .86], a0: .28, a1: 0, entra: .3 });
         }
       }
     }

@@ -120,8 +120,9 @@ export function vineta(bando, cara, { lado = 'arriba', texto = null, ono = null,
   const dibujo = src ? `<img src="${src}" alt="">` : caraPrueba(P.id, cara);
   const t = texto || frase(P.id, cara), o = ono || azar(ONO[cara] || ['¡BRAAAM!']);
   el.className = `${lado} ${bando}`;
-  el.innerHTML = `<div class="panel"><div class="cara">${dibujo}</div><div class="nombre">${P.nombre}</div></div>
-    <div class="globo"></div><div class="ono" data-t=""></div>`;
+  // la franja (con su recorte) va adentro; la onomatopeya afuera, para que sobresalga del borde
+  el.innerHTML = `<div class="banda"><div class="panel"><div class="cara">${dibujo}</div><div class="nombre">${P.nombre}</div></div>
+    <div class="globo"></div></div><div class="ono" data-t=""></div>`;
   el.querySelector('.globo').textContent = t;
   const on = el.querySelector('.ono'); on.textContent = o; on.dataset.t = o;
   el.hidden = false;
