@@ -2,6 +2,7 @@
 import * as R from './reglas.js';
 import { elegirJugada, NIVELES } from './ia.js';
 import { crearEscena } from './escena.js';
+import { cargarModelos } from './barcos.js';
 import { Sonido } from './sonido.js';
 import { crearRed, nuevaSala, extraLink } from './red.js';
 import { vineta, precargar, retrato } from './vigias.js';
@@ -26,6 +27,7 @@ const guardarAjustes = () => escribir('pdp-ajustes', A);
 Sonido.activo = A.sonido;
 
 // ---------- Escena ----------
+await cargarModelos(); // los barcos de Blender; si no llegan, quedan los hechos con código
 const esc = crearEscena($('lienzo'));
 window.__esc = esc;
 esc.setCalidad(A.calidad);

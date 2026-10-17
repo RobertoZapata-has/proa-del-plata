@@ -1,5 +1,6 @@
 // Proa del Plata · barcos de madera hechos con código
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const PALETA = {
   p: { franja: 0x9cc2dc, borde: 0x2a1f16, vela: 0xeee4cb, bandera: ['#78b4e3', '#f4f1e8', '#78b4e3'] },
@@ -218,7 +219,56 @@ function mastilCuadrado(h, anchoV, n, color, bando, conBandera, braza = .55) {
   return g;
 }
 
+// ---------- barcos hechos en Blender (modelos/barcos.glb, ver herramientas/barcos_blender.py) ----------
+const MODELOS = {};
+export function cargarModelos(ms = 9000) {
+  const carga = new Promise(res => {
+    new GLTFLoader().load('modelos/barcos.glb', g => {
+      for (const rol of ['fragata', 'bergantin', 'goleta', 'canonera', 'falucho']) { const o = g.scene.getObjectByName(rol); if (o) MODELOS[rol] = o; }
+      res(Object.keys(MODELOS));
+    }, undefined, e => { console.warn('sin modelos de Blender, uso los de código', e); res([]); });
+  });
+  return Promise.race([carga, new Promise(r => setTimeout(() => r([]), ms))]);
+}
+function matModelo(n, bando) {
+  const P = PALETA[bando];
+  const est = (color, map, extra = {}) => new THREE.MeshStandardMaterial({ color, map: map && tex(map), roughness: .85, side: THREE.DoubleSide, ...extra });
+  switch (n) {
+    case 'madera': return mat('m-madera', () => est(0x5c4130, 'madera-casco'));
+    case 'banda': return mat('m-banda' + bando, () => est(P.franja, 'madera-casco'));
+    case 'negro': return mat('m-negro', () => est(0x241c15, 'madera-casco'));
+    case 'fondo': return mat('m-fondo', () => est(0x84442a, 'madera-casco', { roughness: .7 }));
+    case 'cubierta': return mat('m-cubierta', () => est(0xa3845e, 'madera-cubierta'));
+    case 'palo': return mat('m-palo', () => est(0x6e4d31, 'madera-casco'));
+    case 'bote': return mat('m-bote', () => est(0xe2dccb, 'madera-casco'));
+    case 'vela': return matVela(P.vela);
+    case 'hierro': return HIERRO();
+    case 'farol': return FAROL();
+    case 'ventana': return mat('m-ventana', () => new THREE.MeshStandardMaterial({ color: 0xffd08a, emissive: 0xffa040, emissiveIntensity: 1.1, roughness: .5 }));
+    case 'porta': return mat('m-porta', () => new THREE.MeshStandardMaterial({ color: 0x0b0806, roughness: 1 }));
+    case 'tapa': return mat('m-tapa', () => est(0x9c2b22, 'madera-casco'));
+    case 'dorado': return mat('m-dorado', () => new THREE.MeshStandardMaterial({ color: 0xc09a45, roughness: .45, metalness: .5 }));
+    case 'astilla': return mat('m-astilla', () => est(0xd8b484, 'madera-cubierta'));
+    default: return mat('m-madera', () => est(0x5c4130, 'madera-casco'));
+  }
+}
+function desdeModelo(rolId, bando, largoCeldas) {
+  const o = MODELOS[rolId].clone(true); o.position.set(0, 0, 0); o.rotation.set(0, 0, 0);
+  const banderas = [], mastiles = [];
+  o.traverse(x => {
+    if (x.isLine) x.material = CABO();
+    else if (x.isMesh) x.material = matModelo((x.material.name || '').replace('pdp_', ''), bando);
+    if (/_bandera_/.test(x.name)) banderas.push(x);
+    if (/_palo_\d+$/.test(x.name)) mastiles.push(x);
+  });
+  for (const b of banderas) b.add(bandera(bando, /b$/.test(b.name) ? .3 : .36));
+  const W = { fragata: .8, bergantin: .7, goleta: .62, canonera: .62, falucho: .52 }[rolId], H = { fragata: .56, bergantin: .48, goleta: .44, canonera: .4, falucho: .34 }[rolId];
+  o.userData = { popa: o.getObjectByName(rolId + '_popa'), proa: o.getObjectByName(rolId + '_proa'), mastiles, L: largoCeldas * .92, W, H, rol: rolId, bando, fase: Math.random() * 10, modelo: true };
+  return o;
+}
+
 export function crearBarco(rolId, bando, largoCeldas) {
+  if (MODELOS[rolId]) return desdeModelo(rolId, bando, largoCeldas);
   const P = PALETA[bando];
   const L = largoCeldas * .92, W = { fragata: .8, bergantin: .7, goleta: .62, canonera: .62, falucho: .52 }[rolId], H = { fragata: .56, bergantin: .48, goleta: .44, canonera: .4, falucho: .34 }[rolId];
   const barco = new THREE.Group();
