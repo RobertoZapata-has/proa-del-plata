@@ -25,8 +25,8 @@ const PALETAS = {
   dia: {
     hondo: 0x2c4442, medio: 0x5f7563, cielo: 0xe2c592, sol: 0xffe2a8, niebla: 0xcaa982,
     zenit: 0x34506e, horizonte: 0xf2b877, nubeOsc: 0x3c4150, nubeLuz: 0xffe0b0,
-    solDir: new THREE.Vector3(-.42, .24, -1).normalize(), luzSol: 0xffe2b8, intSol: 2.6, hemiA: 0xcfd8e0, hemiB: 0x3a3426, intHemi: 1.25,
-    tinta: 0xf6ead0, tintaOp: .55, costa: 0x4a5048, agua: 0x22332c, niebla3: 0xaab6bf, exp: .5,
+    solDir: new THREE.Vector3(-.42, .42, -1).normalize(), luzSol: 0xfff0d8, intSol: 2.6, hemiA: 0xcfd8e0, hemiB: 0x3a3426, intHemi: 1.25,
+    tinta: 0xf6ead0, tintaOp: .55, costa: 0x4a5a62, agua: 0x08486e, niebla3: 0xa6c4da, exp: .5,
   },
   noche: {
     hondo: 0x0c1a2a, medio: 0x1e3652, cielo: 0x3a5272, sol: 0xc8daf0, niebla: 0x142236,
@@ -139,7 +139,7 @@ export function crearEscena(canvas) {
   // ---------- Cielo ----------
   // de día: cielo físico (Sky) · de noche: cielo propio con luna y estrellas
   const cieloDia = new Sky(); cieloDia.scale.setScalar(500); escena.add(cieloDia);
-  { const u = cieloDia.material.uniforms; u.turbidity.value = 4.5; u.rayleigh.value = 2.4; u.mieCoefficient.value = .004; u.mieDirectionalG.value = .82; }
+  { const u = cieloDia.material.uniforms; u.turbidity.value = 2.2; u.rayleigh.value = 3.2; u.mieCoefficient.value = .003; u.mieDirectionalG.value = .82; }
   const uCielo = {
     uZenit: { value: new THREE.Color() }, uHorizonte: { value: new THREE.Color() }, uSol: { value: new THREE.Color() }, uSolDir: { value: new THREE.Vector3() },
     uNubeOsc: { value: new THREE.Color() }, uNubeLuz: { value: new THREE.Color() }, uNoche: { value: 0 }, uT: { value: 0 },
@@ -175,6 +175,10 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     sunDirection: new THREE.Vector3(0, 1, 0), sunColor: 0xffffff, waterColor: 0x22332c, distortionScale: 2.6, fog: true,
   });
   agua.rotation.x = -Math.PI / 2; agua.material.uniforms.size.value = 2.2;
+  // más azul: el sol difuso se tiñe con el color del agua y el reflejo del cielo tira a celeste
+  agua.material.fragmentShader = agua.material.fragmentShader.replace(
+    'vec3 albedo = mix( ( sunColor * diffuseLight * 0.3 + scatter ) * getShadowMask(), ( vec3( 0.1 ) + reflectionSample * 0.9 + reflectionSample * specularLight ), reflectance);',
+    'vec3 albedo = mix( ( sunColor * diffuseLight * 0.35 * ( waterColor * 3.0 + 0.08 ) + scatter * 1.5 ) * getShadowMask(), ( vec3( 0.02, 0.06, 0.1 ) + reflectionSample * vec3( 0.72, 0.86, 1.0 ) * 0.9 + reflectionSample * specularLight ), reflectance);');
   escena.add(agua);
   escena.fog = new THREE.Fog(0xb7bcb6, 70, 330);
 
