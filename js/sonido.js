@@ -1,5 +1,5 @@
 // Proa del Plata · sonidos hechos con código (sin archivos)
-let ctx = null, master = null, mar = null, activo = true;
+let ctx = null, master = null, mar = null, activo = true, eco = null;
 
 function ac() {
   if (!ctx) {
@@ -7,6 +7,10 @@ function ac() {
     ctx = new AC(); master = ctx.createGain(); master.gain.value = activo ? .9 : 0;
     const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
     master.connect(comp); comp.connect(ctx.destination);
+    // eco del río: reverberación hecha con ruido que se apaga (sin archivos)
+    const n = ctx.sampleRate * 2.6, ir = ctx.createBuffer(2, n, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3.2); }
+    eco = ctx.createConvolver(); eco.buffer = ir; const g = ctx.createGain(); g.gain.value = .55; eco.connect(g); g.connect(master);
   }
   if (ctx.state === 'suspended') ctx.resume();
   return ctx;
@@ -23,12 +27,22 @@ function env(g, t, a, peak, d, fin = 0.0001) { g.gain.setValueAtTime(0.0001, t);
 function filtro(tipo, f, q = 1) { const x = ctx.createBiquadFilter(); x.type = tipo; x.frequency.value = f; x.Q.value = q; return x; }
 
 function estruendo(t, vol = 1, grave = 1, lejos = 0) {
-  const s = fuenteRuido(), f = filtro('lowpass', 1400 - lejos * 900), g = ctx.createGain();
-  f.frequency.setValueAtTime(1400 - lejos * 900, t); f.frequency.exponentialRampToValueAtTime(140, t + .7);
-  env(g, t, .005, .9 * vol, .9 + grave * .3);
-  s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + 1.6);
-  const o = ctx.createOscillator(), og = ctx.createGain(); o.frequency.setValueAtTime(70 * grave, t); o.frequency.exponentialRampToValueAtTime(32, t + .5);
-  env(og, t, .004, .9 * vol, .6); o.connect(og); og.connect(master); o.start(t); o.stop(t + .8);
+  const dest = (nodo, conEco = .6) => { nodo.connect(master); if (eco) { const e = ctx.createGain(); e.gain.value = conEco; nodo.connect(e); e.connect(eco); } };
+  // 1) el chasquido: un golpe seco y corto
+  { const s = fuenteRuido(), f = filtro('highpass', 1200), g = ctx.createGain();
+    env(g, t, .001, (lejos ? .25 : .7) * vol, .05); s.connect(f); f.connect(g); dest(g, .2); s.start(t); s.stop(t + .12); }
+  // 2) el cuerpo: ruido grave que se cierra de a poco
+  { const s = fuenteRuido(), f = filtro('lowpass', 2200 - lejos * 1400, .7), g = ctx.createGain();
+    f.frequency.setValueAtTime(2200 - lejos * 1400, t); f.frequency.exponentialRampToValueAtTime(90, t + 1.1 * grave);
+    env(g, t, .004, 1.1 * vol, 1.2 + grave * .5); s.connect(f); f.connect(g); dest(g, .7); s.start(t); s.stop(t + 2.2); }
+  // 3) el golpe en el pecho: un seno que cae de 75 a 28 Hz
+  { const o = ctx.createOscillator(), g = ctx.createGain(); o.frequency.setValueAtTime(75 * grave, t); o.frequency.exponentialRampToValueAtTime(28, t + .7);
+    env(g, t, .003, 1.2 * vol * (1 - lejos * .5), .9); const sat = ctx.createWaveShaper(); const c = new Float32Array(256); for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.tanh(x * 2.5); } sat.curve = c;
+    o.connect(sat); sat.connect(g); dest(g, .3); o.start(t); o.stop(t + 1.1); }
+  // 4) el retumbe que queda en el aire
+  { const s = fuenteRuido(), f = filtro('lowpass', 160, .5), g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t + .05); g.gain.exponentialRampToValueAtTime(.55 * vol, t + .25); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.6 * grave);
+    s.connect(f); f.connect(g); dest(g, .9); s.start(t); s.stop(t + 3); }
 }
 function chapoteo(t, vol = 1) {
   const s = fuenteRuido(), f = filtro('bandpass', 900, .7), g = ctx.createGain();
@@ -42,7 +56,7 @@ function gota(t, vol) {
   env(g, t, .002, vol, .06); o.connect(g); g.connect(master); o.start(t); o.stop(t + .1);
 }
 function crujido(t, vol = 1, dur = .5) {
-  for (let i = 0; i < 9; i++) {
+  for (let i = 0; i < 14; i++) {
     const tt = t + Math.random() * dur, s = fuenteRuido(), f = filtro('bandpass', 1800 + Math.random() * 2500, 3), g = ctx.createGain();
     env(g, tt, .001, .5 * vol, .05 + Math.random() * .05); s.connect(f); f.connect(g); g.connect(master); s.start(tt); s.stop(tt + .15);
   }

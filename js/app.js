@@ -32,6 +32,21 @@ const esc = crearEscena($('lienzo'));
 window.__esc = esc;
 esc.setCalidad(A.calidad);
 
+// ---------- Modo invitación: solo el capitán (con su código) crea partidas ----------
+// El código no está escrito acá: solo su huella (SHA-256). Se carga una vez con ?capitan=CODIGO
+// o tocando 5 veces el logo de la pantalla "próximamente".
+const HUELLA_CAPITAN = '95a3df343be732fd0027691ae9e0023b947e8bb590249b4c40016f415d2a3387';
+async function huella(txt) {
+  try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt.trim().toLowerCase())); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); } catch (e) { return ''; }
+}
+async function probarCodigo(txt) { if (txt && await huella(txt) === HUELLA_CAPITAN) { escribir('pdp-capitan', txt.trim().toLowerCase()); return true; } return false; }
+let CAPITAN = false;
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get('capitan')) { await probarCodigo(q.get('capitan')); q.delete('capitan'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); }
+  CAPITAN = !!leer('pdp-capitan') && await huella(leer('pdp-capitan')) === HUELLA_CAPITAN;
+}
+
 // ---------- Estado ----------
 const S = {
   modo: null, yo: 'h', cfg: null, flota: [], log: [], est: null,
@@ -51,8 +66,8 @@ function estado() { S.est = R.reconstruir(S.cfg, S.yo, S.flota, S.log); return S
 function guardar() {
   if (S.modo === 'cpu') escribir('pdp-cpu', { cfg: S.cfg, flota: S.flota, flotaCpu: S.flotaCpu, log: S.log, nivel: S.nivel, listo: S.listo });
   if (S.modo === 'online' && S.sala) {
-    escribir('pdp-sala-' + S.sala, { yo: S.yo, cfg: S.cfg, flota: S.flota, log: S.log, listo: S.listo, rivalListo: S.rivalListo, pend: S.pend, rivalFlota: S.rivalFlota, chat: S.chat.slice(-60) });
-    escribir('pdp-ultima', { sala: S.sala, yo: S.yo, fin: !!(S.est && S.est.fin) });
+    escribir('pdp-sala-' + S.sala, { yo: S.yo, cfg: S.cfg, flota: S.flota, log: S.log, listo: S.listo, rivalListo: S.rivalListo, pend: S.pend, rivalFlota: S.rivalFlota, chat: S.chat.slice(-60), tokInv: S.tokInv || null, ts: Date.now() });
+    escribir('pdp-ultima', { sala: S.sala, yo: S.yo, fin: !!(S.est && S.est.fin), ts: Date.now() });
   }
 }
 
@@ -100,7 +115,7 @@ function pintarTabla() {
   const t = $('tabla'); let h = '';
   const est = S.est;
   if (S.fase === 'conectando') {
-    h = `<div class="espera">${OLA_SVG}<span>Conectando con tu amigo…</span></div>`;
+    h = `<div class="espera">${OLA_SVG}<span>Conectando con tu amigo…</span></div><div class="botones" style="margin-top:8px"><button class="btn chico" data-act="abandonar"><span>Salir</span></button></div>`;
   } else if (S.fase === 'armado') {
     const v = R.validarFlota(R.mapaPorId(S.cfg.mapa), S.flota);
     h = `<h3>Acomodá tu escuadra <small>${bandoDe(S.yo) === 'p' ? 'Patriotas · Brown' : 'Realistas · Romarate'}</small></h3>
@@ -112,7 +127,7 @@ function pintarTabla() {
       <button class="btn fuego" data-act="zarpar" ${v.ok ? '' : 'disabled'}>${icono('ancla')} ¡Zarpar!</button></div>`;
   } else if (S.fase === 'espera') {
     h = `<div class="espera">${OLA_SVG}<span>${S.conectado ? 'Tu amigo todavía está acomodando su flota…' : 'Esperando que tu amigo entre a la batalla…'}</span></div>
-    <div class="botones" style="margin-top:8px">${S.yo === 'h' && !S.conectado ? `<button class="btn azul" data-act="invitar">${icono('botella')} Mandar el link</button>` : ''}<button class="btn" data-act="vista">${icono('ojo')} ${S.vista === 'mio' ? 'Aguas enemigas' : 'Mi flota'}</button></div>`;
+    <div class="botones" style="margin-top:8px">${!S.conectado ? `<button class="btn chico" data-act="abandonar"><span>Abandonar</span></button>` : ''}${S.yo === 'h' && !S.conectado ? `<button class="btn azul" data-act="invitar">${icono('botella')} Mandar el link</button>` : ''}<button class="btn" data-act="vista">${icono('ojo')} ${S.vista === 'mio' ? 'Aguas enemigas' : 'Mi flota'}</button></div>`;
   } else if (S.fase === 'combate' && est) {
     if (est.turno === S.yo && !S.ocupado) {
       const fichas = [`<button class="ficha${!S.poder ? ' sel' : ''}" data-act="poder" data-p=""><span class="hx">${icono('tiro')}</span><span class="n">Tiro</span></button>`];
@@ -134,12 +149,12 @@ function pintarTabla() {
         <button class="btn fuego" data-act="fuego" ${ok ? '' : 'disabled'}>${S.poder ? icono(S.poder === 'maniobra' ? 'maniobra' : S.poder) : icono('fuego')} ${texto}</button></div>`;
     } else if (est.turno === rival() && !S.ocupado) {
       h = `<div class="espera">${OLA_SVG}<span>${S.modo === 'cpu' ? 'Romarate prepara los cañones…' : (S.conectado ? 'Turno de tu amigo…' : 'Tu amigo se desconectó. Lo esperamos…')}</span></div>
-      <div class="botones" style="margin-top:8px"><button class="btn" data-act="vista">${icono('ojo')} ${S.vista === 'mio' ? 'Ver aguas enemigas' : 'Ver mi flota'}</button></div>`;
+      <div class="botones" style="margin-top:8px">${S.modo === 'online' && !S.conectado ? `<button class="btn chico" data-act="abandonar"><span>Abandonar</span></button>` : ''}<button class="btn" data-act="vista">${icono('ojo')} ${S.vista === 'mio' ? 'Ver aguas enemigas' : 'Ver mi flota'}</button></div>`;
     } else {
       h = `<div class="espera">${OLA_SVG}<span>${S.pend ? 'Disparando…' : '¡Fuego!'}</span></div>`;
     }
   } else if (S.fase === 'fin') {
-    h = `<div class="botones"><button class="btn fuego" data-act="revancha">${icono('fuego')} Revancha</button><button class="btn" data-act="resultado">Resultado</button><button class="btn" data-act="inicio">Inicio</button></div>`;
+    h = `<div class="botones"><button class="btn fuego" data-act="revancha">${icono('fuego')} Revancha</button><button class="btn" data-act="resultado">Resultado</button>${CAPITAN ? `<button class="btn" data-act="inicio">Inicio</button>` : `<button class="btn" data-act="abandonar">Salir</button>`}</div>`;
   }
   t.innerHTML = h;
   requestAnimationFrame(ajustarMargenes);
@@ -245,7 +260,29 @@ function prepararTablero() {
 let instalar = null;
 addEventListener('beforeinstallprompt', e => { e.preventDefault(); instalar = e; if (S.fase === 'portada') pintarPortada(); });
 
+function pintarProximo() {
+  S.fase = 'portada';
+  $('arriba').hidden = true; $('abajo').hidden = true; $('portada').hidden = false; $('chat').hidden = true;
+  esc.portada(true); esc.dormir(true);
+  $('menuPortada').innerHTML = `<div class="proximo"><b>Próximamente en Play Store</b><span>Si te invitaron a una batalla, abrí el link que te mandaron.</span></div>
+    <form class="codigoCap" id="codigoCap" hidden><input id="codigoIn" placeholder="Código de capitán" autocomplete="off" autocapitalize="off"><button class="btn chico" type="submit"><span>Entrar</span></button></form>`;
+}
+let toquesLogo = 0, toquesT = 0;
+$('portada').querySelector('.logo').addEventListener('click', () => {
+  if (CAPITAN) return;
+  const ahora = Date.now(); toquesLogo = ahora - toquesT < 900 ? toquesLogo + 1 : 1; toquesT = ahora;
+  if (toquesLogo >= 5 && $('codigoCap')) { $('codigoCap').hidden = false; $('codigoIn').focus(); }
+});
+$('menuPortada').addEventListener('submit', async e => {
+  if (e.target.id !== 'codigoCap') return; e.preventDefault();
+  if (await probarCodigo($('codigoIn').value)) { CAPITAN = true; aviso('¡Bienvenido a bordo, capitán!', 'oro'); pintarPortada(); }
+  else { $('codigoIn').value = ''; aviso('Ese código no es', 'rojo'); }
+});
+function partidaVieja(g) { return !g || (g.ts && Date.now() - g.ts > 3 * 24 * 3600e3); }
+
 function pintarPortada() {
+  const sala0 = params.get('sala');
+  if (!CAPITAN && !sala0) return pintarProximo();
   S.fase = 'portada';
   $('arriba').hidden = true; $('abajo').hidden = true; $('portada').hidden = false; $('chat').hidden = true;
   esc.resaltar('rival', []); esc.resaltar('mio', []);
@@ -253,7 +290,8 @@ function pintarPortada() {
   esc.portada(true); esc.dormir(true); // la portada es una ilustración: el río 3D descansa
   const sala = params.get('sala');
   const cpu = leer('pdp-cpu'); const cpuViva = cpu && cpu.cfg && !R.reconstruir(cpu.cfg, 'h', cpu.flota, cpu.log).fin && cpu.listo;
-  const ult = leer('pdp-ultima');
+  let ult = leer('pdp-ultima');
+  if (ult && ult.sala && (ult.fin || partidaVieja(leer('pdp-sala-' + ult.sala)))) { borrar('pdp-ultima'); ult = null; }
   let h = '';
   if (sala && !leer('pdp-sala-' + sala)) {
     h += `<div class="invitado"><b>Te desafiaron a una batalla</b><span style="font-style:italic">Vas a comandar la escuadra realista</span></div>
@@ -261,10 +299,11 @@ function pintarPortada() {
   } else if (sala) {
     h += `<button class="btn fuego" data-p="volverSala">${icono('ancla')} <span class="tx">Volver a la batalla<small>Sala ${sala}</small></span></button>`;
   }
+  if (!CAPITAN) { $('menuPortada').innerHTML = h; return; } // el invitado solo ve su batalla
   h += `<button class="btn ${sala ? '' : 'fuego'}" data-p="online">${icono('botella')} <span class="tx">Jugar con un amigo<small>Le mandás un link por WhatsApp</small></span></button>
     <button class="btn azul" data-p="cpu">${icono('fuego')} <span class="tx">Contra la compu<small>Romarate te espera en el río</small></span></button>`;
   if (cpuViva) h += `<button class="btn" data-p="seguirCpu">${icono('ancla')} <span class="tx">Seguir la partida con Romarate</span></button>`;
-  if (!sala && ult && ult.sala && !ult.fin && leer('pdp-sala-' + ult.sala)) h += `<button class="btn" data-p="ultima" data-s="${ult.sala}">${icono('ancla')} <span class="tx">Volver a la partida online<small>Sala ${ult.sala}</small></span></button>`;
+  if (!sala && ult && ult.sala && !ult.fin && leer('pdp-sala-' + ult.sala)) h += `<div class="fila-volver"><button class="btn" data-p="ultima" data-s="${ult.sala}">${icono('ancla')} <span class="tx">Volver a la partida online<small>Sala ${ult.sala}</small></span></button><button class="btn chico" data-p="descartar" data-s="${ult.sala}" aria-label="Descartar esa partida"><span>✕</span></button></div>`;
   h += `<div class="interruptor${A.noche ? ' on' : ''}" data-p="noche"><div class="t"><b>Combate nocturno</b><span>De noche no se ve nada: bengalas, memoria y maniobras</span></div><div class="llave"></div></div>
     <div class="pie"><button class="btn" data-p="reglas">Cómo se juega</button>${instalar ? `<button class="btn" data-p="instalar">Instalar</button>` : ''}<button class="btn" data-p="sonido">${A.sonido ? 'Sonido: sí' : 'Sonido: no'}</button></div>`;
   $('menuPortada').innerHTML = h;
@@ -277,11 +316,12 @@ $('menuPortada').addEventListener('click', e => {
   if (p === 'reglas') mostrarReglas();
   if (p === 'sonido') { A.sonido = !A.sonido; Sonido.activo = A.sonido; guardarAjustes(); pintarPortada(); }
   if (p === 'instalar' && instalar) { instalar.prompt(); instalar = null; pintarPortada(); }
-  if (p === 'cpu') elegirNivel();
+  if (p === 'cpu' && CAPITAN) elegirNivel();
   if (p === 'seguirCpu') reanudarCpu();
   if (p === 'online') crearSalaOnline();
   if (p === 'entrar') entrarComoInvitado(params.get('sala'));
   if (p === 'volverSala') reanudarSala(params.get('sala'));
+  if (p === 'descartar') { abandonarSala(b.dataset.s, false); pintarPortada(); aviso('Partida descartada', 'oro'); }
   if (p === 'ultima') { location.href = location.pathname + '?sala=' + b.dataset.s + extraLink(); }
 });
 
@@ -312,11 +352,25 @@ $('modal').addEventListener('click', e => {
   if (m === 'reglas') mostrarReglas();
   if (m === 'inicio') { $('modal').hidden = true; irAlInicio(); }
   if (m === 'abandonar') { $('modal').hidden = true; if (S.modo === 'cpu') borrar('pdp-cpu'); irAlInicio(); }
+  if (m === 'abandonarOnline') confirmarAbandono();
+  if (m === 'abandonarSi') { $('modal').hidden = true; if (S.cfg) enviar({ t: 'abandono', gid: S.cfg.gid }); const sala = S.sala; setTimeout(() => { abandonarSala(sala); irAlInicio(); }, 300); }
+  if (m === 'salir') { $('modal').hidden = true; abandonarSala(S.sala); irAlInicio(); }
   if (m === 'invitar') mostrarInvitacion();
   if (m === 'revancha') { $('modal').hidden = true; pedirRevancha(); }
   if (m === 'ver') cerrarModal();
 });
 
+function confirmarAbandono() {
+  modal(`<h2>¿Abandonar la batalla?</h2><p class="sub">${S.est && !S.est.fin && S.fase === 'combate' ? 'Tu amigo gana esta partida.' : 'Se cierra esta sala.'} Le avisamos para que pueda jugar con otra persona.</p>
+    <div class="pila"><button class="btn fuego" data-m="abandonarSi"><span>Sí, abandonar</span></button><button class="btn" data-m="cerrar"><span>Seguir jugando</span></button></div>`);
+}
+// borra todo lo guardado de una sala online
+function abandonarSala(sala, cerrarRed = true) {
+  if (!sala) return;
+  borrar('pdp-sala-' + sala); borrar('pdp-tok-' + sala);
+  const u = leer('pdp-ultima'); if (u && u.sala === sala) borrar('pdp-ultima');
+  if (cerrarRed && S.red && S.sala === sala) { S.red.cerrar(); S.red = null; }
+}
 function elegirNivel() {
   modal(`<h2>Contra la compu</h2><p class="sub">Elegí el rango de tu rival realista</p>
     <div class="niveles">${NIVELES.map((n, i) => `<button class="nivel${n.id === S.nivel ? ' sel' : ''}" data-m="nivel" data-n="${n.id}"><span class="rk">${n.nombre}</span><span class="tx">${n.texto}</span><span class="galon">${'<i></i>'.repeat(i + 1)}</span></button>`).join('')}</div>
@@ -342,7 +396,8 @@ function menu() {
       ${S.modo === 'online' && S.yo === 'h' ? `<button class="btn azul" data-m="invitar">${icono('botella')} Volver a mandar el link</button>` : ''}
       <button class="btn" data-m="reglas">Cómo se juega</button>
       ${S.modo === 'cpu' && S.fase !== 'fin' ? `<button class="btn" data-m="abandonar">Abandonar esta partida</button>` : ''}
-      <button class="btn" data-m="inicio">Volver a la portada</button>
+      ${S.modo === 'online' ? `<button class="btn" data-m="abandonarOnline">Abandonar la batalla</button>` : ''}
+      ${CAPITAN ? `<button class="btn" data-m="inicio">Volver a la portada</button>` : ''}
     </div>`);
 }
 const linkSala = () => location.origin + location.pathname + '?sala=' + S.sala + extraLink();
@@ -357,6 +412,7 @@ function mostrarInvitacion() {
     <p style="font-size:13.5px;font-style:italic;color:var(--suave);margin:10px 0 0">Vos comandás a los patriotas y tu amigo a los realistas. ${S.cfg && S.cfg.noche ? 'Es un combate nocturno.' : ''}</p>`);
 }
 function irAlInicio() {
+  $('modal').hidden = true;
   if (S.red) { S.red.cerrar(); S.red = null; }
   S.modo = null; S.cfg = null; S.est = null; S.log = []; S.ocupado = false;
   history.replaceState(null, '', location.pathname);
@@ -525,6 +581,7 @@ $('tabla').addEventListener('click', e => {
   if (a === 'revancha') pedirRevancha();
   if (a === 'resultado') mostrarFin();
   if (a === 'inicio') irAlInicio();
+  if (a === 'abandonar') confirmarAbandono();
 });
 
 function zarpar() {
@@ -761,7 +818,7 @@ function mostrarFin() {
         <tr><td>Hundidos</td><td>${yo.hundidos}</td><td>${el.hundidos}</td></tr>
       </table>
     </div>
-    <div class="finBotones"><button class="btn fuego" data-m="revancha"><span>${icono('fuego')} Revancha</span></button><button class="btn" data-m="ver"><span>Ver el río</span></button><button class="btn" data-m="inicio"><span>Volver a la portada</span></button></div>`, null, 'busca');
+    <div class="finBotones"><button class="btn fuego" data-m="revancha"><span>${icono('fuego')} Revancha</span></button><button class="btn" data-m="ver"><span>Ver el río</span></button>${CAPITAN ? `<button class="btn" data-m="inicio"><span>Volver a la portada</span></button>` : `<button class="btn" data-m="salir"><span>Salir</span></button>`}</div>`, null, 'busca');
 }
 
 // =====================================================================
@@ -809,14 +866,15 @@ async function turnoCpuSiToca() {
 // =====================================================================
 function enviar(d) { if (S.red) return S.red.enviar(d); return false; }
 function crearSalaOnline() {
-  S.modo = 'online'; S.yo = 'h'; S.sala = nuevaSala();
+  if (!CAPITAN) return pintarProximo();
+  S.modo = 'online'; S.yo = 'h'; S.sala = nuevaSala(); S.tokInv = null;
   history.replaceState(null, '', location.pathname + '?sala=' + S.sala + extraLink());
   S.cfg = cfgNueva(); S.flota = R.flotaAlAzar(R.mapaPorId(S.cfg.mapa)); S.log = []; S.listo = false; S.rivalListo = false; S.rivalFlota = null; S.pend = null; S.chat = [];
   guardar(); conectar(); empezarArmado(); mostrarInvitacion();
 }
 function reanudarSala(sala) {
   const g = leer('pdp-sala-' + sala); if (!g) return entrarComoInvitado(sala);
-  Object.assign(S, { modo: 'online', sala, yo: g.yo, cfg: g.cfg, flota: g.flota, log: g.log || [], listo: g.listo, rivalListo: g.rivalListo, pend: g.pend, rivalFlota: g.rivalFlota, chat: g.chat || [] });
+  Object.assign(S, { modo: 'online', sala, yo: g.yo, cfg: g.cfg, flota: g.flota, log: g.log || [], listo: g.listo, rivalListo: g.rivalListo, pend: g.pend, rivalFlota: g.rivalFlota, chat: g.chat || [], tokInv: g.tokInv || null });
   conectar();
   if (!S.cfg) { S.fase = 'conectando'; prepararSinCfg(); return; }
   empezarArmado();
@@ -835,8 +893,10 @@ function prepararSinCfg() {
 function conectar() {
   if (S.red) S.red.cerrar();
   S.conectado = false;
+  if (S.yo === 'g' && !leer('pdp-tok-' + S.sala)) escribir('pdp-tok-' + S.sala, crypto.getRandomValues(new Uint32Array(4)).join('-'));
   S.red = crearRed({
-    sala: S.sala, rol: S.yo,
+    sala: S.sala, rol: S.yo, tok: S.yo === 'g' ? leer('pdp-tok-' + S.sala) : null,
+    aceptar: tok => { if (!tok) return false; if (!S.tokInv) { S.tokInv = tok; guardar(); return true; } return tok === S.tokInv; },
     alMensaje: recibir,
     alEstado: (txt, ok) => { S.conectado = !!(S.red && S.red.conectado) || ok; if (S.fase !== 'portada') { if (ok || /desconect|cortó|No cargó/.test(txt)) aviso(txt, ok ? 'oro' : 'rojo', 2600); actualizarTodo(); } },
     alConectar: () => { S.conectado = true; enviarHola(); actualizarTodo(); },
@@ -858,6 +918,17 @@ function enviarRevela() {
 }
 function recibir(d) {
   if (d.t === 'chat') return llegaChat(d);
+  if (d.t === 'ocupada') { // ya hay dos capitanes en esta sala
+    const sala = S.sala; abandonarSala(sala);
+    modal(`<h2>Batalla completa</h2><p class="sub">Esta batalla ya tiene dos capitanes. Pedile a quien te invitó un link nuevo.</p><div class="pila"><button class="btn" data-m="salir"><span>Entendido</span></button></div>`);
+    return;
+  }
+  if (d.t === 'abandono') {
+    if (!S.cfg || d.gid !== S.cfg.gid) return;
+    const sala = S.sala; abandonarSala(sala);
+    modal(`<h2>Tu amigo abandonó</h2><p class="sub">La batalla terminó. ${CAPITAN ? 'Podés armar otra con quien quieras.' : ''}</p><div class="pila"><button class="btn fuego" data-m="salir"><span>${CAPITAN ? 'Volver a la portada' : 'Salir'}</span></button></div>`);
+    return;
+  }
   if (d.t === 'hola') {
     if (S.yo === 'g' && d.cfg && (!S.cfg || S.cfg.gid !== d.cfg.gid)) { adoptarCfg(d.cfg); S.rivalListo = !!d.listo; guardar(); enviarHola(); actualizarTodo(); return; }
     if (!S.cfg || d.gid !== S.cfg.gid) return;

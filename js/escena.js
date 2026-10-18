@@ -193,6 +193,9 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
   // luces
   const hemi = new THREE.HemisphereLight(pal.hemiA, pal.hemiB, pal.intHemi); escena.add(hemi);
   const sol = new THREE.DirectionalLight(pal.luzSol, pal.intSol); escena.add(sol); escena.add(sol.target);
+  // luz de relleno desde la cámara: el sol viene de frente y dejaba los barcos a contraluz
+  const relleno = new THREE.DirectionalLight(0xfff2e0, .55); escena.add(relleno); escena.add(relleno.target);
+  let rellenoExtra = 0, rellenoAhora = 0;
   const luzBengala = new THREE.PointLight(0xfff0c8, 0, 22, 1.6); escena.add(luzBengala);
   const luzFogonazo = new THREE.PointLight(0xffb060, 0, 14, 2); escena.add(luzFogonazo);
 
@@ -620,6 +623,10 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     const eje = h.h ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, 1);
     const lado = h.h ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
     if (opts.cine) {
+      // la cámara se pone del lado del sol, así se ve la madera y la bandera (no la silueta a contraluz)
+      const solH = new THREE.Vector3(pal.solDir.x, 0, pal.solDir.z).normalize();
+      if (lado.dot(solH) < 0) lado.negate();
+      rellenoExtra = 1;
       fijo = true; grilla(false);
       const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect);
       const dist = THREE.MathUtils.clamp((L * .62 + .9) / Math.tan(hfov / 2), 5, 17);
@@ -659,7 +666,7 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     burb(); velocidad = 1;
     escena.remove(o); barcos[tab].delete(clave);
     ponerRestos(tab + ':' + h.rol, pos, rol(h.rol).largo, h.h, Math.random, true);
-    if (opts.cine) { await espera(.7); fijo = false; await volver(1.4); grilla(true); }
+    if (opts.cine) { await espera(.7); fijo = false; rellenoExtra = 0; await volver(1.4); grilla(true); }
   }
   function setIntervalo(cada, fn) { const it = { cada, fn, acc: 0 }; intervalos.add(it); return () => intervalos.delete(it); }
   const intervalos = new Set();
@@ -830,7 +837,10 @@ void main(){ vec3 d=normalize(vD); float y=d.y;
     // dibujar
     const t0 = performance.now();
     agua.material.uniforms.time.value = t * .45;
-    renderer.toneMappingExposure = expBase * (1 + flash * 1.6);
+    rellenoAhora += (rellenoExtra - rellenoAhora) * Math.min(1, dt * 3);
+    relleno.position.copy(cam.position).add(_v.set(0, 4, 0)); relleno.target.position.copy(camObj.mira);
+    relleno.intensity = (noche ? .35 : .55) + rellenoAhora * (noche ? .9 : 1.6);
+    renderer.toneMappingExposure = expBase * (1 + flash * 1.6) * (1 + rellenoAhora * .25);
     renderer.autoClear = true; renderer.render(escena, cam);
     renderer.autoClear = false; renderer.clearDepth(); renderer.render(capa, cam);
     // calidad automática

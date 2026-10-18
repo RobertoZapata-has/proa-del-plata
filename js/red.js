@@ -16,7 +16,7 @@ export function nuevaSala() {
   return s;
 }
 
-export function crearRed({ sala, rol, alMensaje, alEstado, alConectar }) {
+export function crearRed({ sala, rol, alMensaje, alEstado, alConectar, tok = null, aceptar = () => true }) {
   let peer = null, conn = null, conectado = false, vivo = true, reintento = null, abrir = null;
   const pendientes = [];
   const estado = (txt, ok = false) => alEstado && alEstado(txt, ok);
@@ -53,7 +53,14 @@ export function crearRed({ sala, rol, alMensaje, alEstado, alConectar }) {
     peer = crearPeer(PREFIJO + sala); if (!peer) return;
     estado('Abriendo la sala…');
     peer.on('open', () => { if (!conectado) estado('Esperando a tu amigo…'); });
-    peer.on('connection', c => enganchar(c));
+    peer.on('connection', c => {
+      // la sala queda atada al primer invitado: un link reenviado no le saca el lugar
+      if (!aceptar(c.metadata && c.metadata.tok)) {
+        c.on('open', () => { try { c.send({ t: 'ocupada' }); } catch (e) {} setTimeout(() => { try { c.close(); } catch (e) {} }, 1500); });
+        return;
+      }
+      enganchar(c);
+    });
     peer.on('error', e => {
       if (e.type === 'unavailable-id') { estado('Recuperando la sala…'); peer.destroy(); setTimeout(() => vivo && iniciarAnfitrion(), 3000); }
       else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(e.type)) estado('Sin conexión al servidor, reintento…');
@@ -74,7 +81,7 @@ export function crearRed({ sala, rol, alMensaje, alEstado, alConectar }) {
     if (!vivo || !peer || peer.destroyed) return;
     if (peer.disconnected) { peer.reconnect(); return; }
     if (conn && conn.open) return;
-    const c = peer.connect(PREFIJO + sala, { reliable: true }); enganchar(c);
+    const c = peer.connect(PREFIJO + sala, { reliable: true, metadata: { tok } }); enganchar(c);
     clearTimeout(abrir);
     abrir = setTimeout(() => { if (conn === c && !c.open) { estado('No conecta todavía, reintento…'); try { c.close(); } catch (e) {} conectarAlAnfitrion(); } }, 12000);
   }
